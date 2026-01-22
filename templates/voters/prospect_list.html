@@ -10,20 +10,20 @@
     </div>
 
     <!-- Search Form -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+    <div class="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
         <form method="get" class="space-y-4">
             <div>
                 {{ search_form.identification_number.label_tag }}
                 {{ search_form.identification_number }}
             </div>
-            <div class="flex space-x-3">
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto">
                     Buscar
                 </button>
-                <a href="{% url 'voters:prospect_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition-colors">
+                <a href="{% url 'voters:prospect_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto">
                     Limpiar
                 </a>
-                <a href="{% url 'voters:prospect_create' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors ml-auto">
+                <a href="{% url 'voters:prospect_create' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto sm:ml-auto">
                     + Crear Nuevo
                 </a>
             </div>
@@ -32,7 +32,8 @@
 
     <!-- Results -->
     <div class="bg-white rounded-lg shadow-md overflow-hidden">
-        <div class="overflow-x-auto">
+        <!-- Desktop Table View -->
+        <div class="hidden md:block overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -129,6 +130,94 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        
+        <!-- Mobile Card View -->
+        <div class="md:hidden divide-y divide-gray-200">
+            {% for prospect in prospects %}
+            <div class="p-4 hover:bg-blue-50 transition-colors duration-150">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900">{{ prospect.get_full_name }}</h3>
+                        <p class="text-sm text-gray-500 mt-1">ID: {{ prospect.identification_number }}</p>
+                    </div>
+                    <div class="flex items-center space-x-2 ml-2">
+                        {% if prospect.polling_station_consulted %}
+                            <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="space-y-2 mb-3">
+                    {% if prospect.phone_number %}
+                    <div class="flex items-center text-sm text-gray-600">
+                        <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                        </svg>
+                        {{ prospect.phone_number }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="flex items-center text-sm text-gray-600">
+                        <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        {{ prospect.created_at|date:"d/m/Y H:i" }}
+                    </div>
+                    
+                    {% if prospect.origins.all %}
+                    <div class="flex items-center flex-wrap gap-1">
+                        <svg class="w-4 h-4 text-gray-400 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                        </svg>
+                        {% for origin in prospect.origins.all %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ origin.name }}
+                            </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="flex items-center justify-end space-x-3 pt-2 border-t border-gray-100">
+                    <a href="{% url 'voters:prospect_detail' prospect.pk %}" 
+                       class="flex items-center text-blue-600 hover:text-blue-900 transition-colors text-sm font-medium">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        Ver
+                    </a>
+                    {% if can_edit_prospects %}
+                    <a href="{% url 'voters:prospect_update' prospect.pk %}" 
+                       class="flex items-center text-green-600 hover:text-green-900 transition-colors text-sm font-medium">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        Editar
+                    </a>
+                    {% endif %}
+                    {% if can_delete_prospects %}
+                    <a href="{% url 'voters:prospect_delete' prospect.pk %}" 
+                       class="flex items-center text-red-600 hover:text-red-900 transition-colors text-sm font-medium">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Eliminar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-8 text-center">
+                <p class="text-gray-500 mb-2">No se encontraron prospectos.</p>
+                <a href="{% url 'voters:prospect_create' %}" class="text-blue-600 hover:text-blue-800 font-medium">
+                    Crear nuevo prospecto
+                </a>
+            </div>
+            {% endfor %}
         </div>
 
         <!-- Pagination -->
