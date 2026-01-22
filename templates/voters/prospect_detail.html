@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ prospect.get_full_name }} - SoyNadia{% endblock %}
+
+{% block content %}
+<div class="fade-in max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">Detalles del Prospecto</h1>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">{{ prospect.get_full_name }}</h2>
+        </div>
+        
+        <div class="px-6 py-6">
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Número de Identificación</dt>
+                    <dd class="mt-1 text-lg text-gray-900 font-semibold">{{ prospect.identification_number }}</dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Teléfono</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.phone_number }}</dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Nombre</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.first_name }}</dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Apellido</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.last_name }}</dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Fecha de Creación</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.created_at|date:"d/m/Y H:i" }}</dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Última Actualización</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.updated_at|date:"d/m/Y H:i" }}</dd>
+                </div>
+
+                {% if prospect.created_by %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Creado Por</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.created_by.email }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex space-x-3">
+            <a href="{% url 'voters:prospect_update' prospect.pk %}" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium text-center transition-colors">
+                Editar
+            </a>
+            <a href="{% url 'voters:prospect_delete' prospect.pk %}" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium text-center transition-colors">
+                Eliminar
+            </a>
+            <a href="{% url 'voters:prospect_list' %}" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium text-center transition-colors">
+                Volver
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,129 @@
+# 🚀 Guía Rápida de Despliegue
+
+## Desarrollo Local (3 pasos)
+
+```bash
+# 1. Configurar variables
+cp env.example .env
+
+# 2. Iniciar servicios
+docker-compose up -d --build
+
+# 3. Acceder
+# Web: http://localhost
+# Usuario: admin@admin.com (o el que configuraste en .env)
+# Password: changeme123456 (o el que configuraste en .env)
+```
+
+## Producción en AWS EC2 (6 pasos)
+
+```bash
+# 1. Preparar servidor
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker ubuntu
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# 2. Clonar proyecto
+git clone <tu-repo>
+cd soynadia
+
+# 3. Configurar .env
+nano .env
+# Cambiar: SECRET_KEY, DEBUG=False, ALLOWED_HOSTS
+# IMPORTANTE: ADMIN_EMAIL, ADMIN_PASSWORD, POSTGRES_PASSWORD
+
+# 4. Desplegar
+docker-compose up -d --build
+
+# 5. Verificar
+docker-compose ps
+docker-compose logs -f web
+
+# 6. Cambiar contraseña admin
+docker-compose exec web python manage.py changepassword admin@soynadia.com
+```
+
+## Crear API Key
+
+```bash
+docker-compose exec web python manage.py shell
+```
+
+```python
+from voters.models import ApiKey
+from users.models import CustomUser
+user = CustomUser.objects.get(email='admin@soynadia.com')
+api_key = ApiKey.objects.create(user=user, name='Mi API Key')
+print(f'API Key: {api_key.key}')
+```
+
+## Probar API
+
+```bash
+curl -X POST http://localhost/api/prospects/ \
+  -H "Authorization: Api-Key TU-API-KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "identification_number": "1234567890",
+    "first_name": "Juan",
+    "last_name": "Pérez",
+    "phone_number": "3001234567"
+  }'
+```
+
+## Security Group EC2
+
+- Puerto 22 (SSH) - Tu IP
+- Puerto 80 (HTTP) - 0.0.0.0/0
+- Puerto 443 (HTTPS) - 0.0.0.0/0
+
+## Variables Importantes
+
+```env
+# Django
+SECRET_KEY=generar-con-comando-python
+DEBUG=False
+ALLOWED_HOSTS=tu-ip-o-dominio.com
+
+# Base de datos
+POSTGRES_PASSWORD=cambiar-password-seguro
+
+# Superusuario (IMPORTANTE CAMBIAR)
+ADMIN_EMAIL=admin@tuempresa.com
+ADMIN_PASSWORD=UnPasswordSeguro123!
+ADMIN_FIRST_NAME=Admin
+ADMIN_LAST_NAME=User
+```
+
+Generar SECRET_KEY:
+```bash
+python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+## Comandos Útiles
+
+```bash
+# Ver logs
+docker-compose logs -f web
+
+# Reiniciar
+docker-compose restart
+
+# Backup DB
+docker-compose exec db pg_dump -U postgres soynadia > backup.sql
+
+# Restore DB
+docker-compose exec -T db psql -U postgres soynadia < backup.sql
+```
+
+## Troubleshooting
+
+- **Error de permisos**: `chmod +x entrypoint.sh`
+- **DB no conecta**: Verificar variables en .env
+- **502 Bad Gateway**: Ver logs con `docker-compose logs web`
+
+---
+
+Para más detalles, ver [README.md](README.md)
