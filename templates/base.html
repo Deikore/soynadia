@@ -12,12 +12,37 @@
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         .fade-in {
             animation: fadeIn 0.3s ease-out;
         }
+        .slide-down {
+            animation: slideDown 0.3s ease-out;
+        }
     </style>
+    <script>
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const menuIcon = document.getElementById('menu-icon');
+            const closeIcon = document.getElementById('close-icon');
+            
+            if (menu.classList.contains('hidden')) {
+                menu.classList.remove('hidden');
+                menuIcon.classList.add('hidden');
+                closeIcon.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+                menuIcon.classList.remove('hidden');
+                closeIcon.classList.add('hidden');
+            }
+        }
+    </script>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div class="flex flex-col min-h-screen">
     {% if user.is_authenticated %}
     <!-- Navigation Bar -->
     <nav class="bg-white shadow-lg">
@@ -37,19 +62,34 @@
                             <span class="text-2xl font-bold text-blue-600" style="display:none;">SoyNadia</span>
                         </a>
                     </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="{% url 'voters:dashboard' %}" class="border-transparent text-gray-500 hover:border-blue-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                    <!-- Mobile menu button -->
+                    <div class="sm:hidden ml-4 flex items-center">
+                        <button type="button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500" aria-controls="mobile-menu" aria-expanded="false" onclick="toggleMobileMenu()">
+                            <span class="sr-only">Abrir menú principal</span>
+                            <svg class="block h-6 w-6" id="menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                            <svg class="hidden h-6 w-6" id="close-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8" id="desktop-menu">
+                        {% url 'voters:dashboard' as dashboard_url %}
+                        <a href="{{ dashboard_url }}" class="{% if request.resolver_match.url_name == 'dashboard' %}border-blue-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-blue-500 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             Dashboard
                         </a>
-                        <a href="{% url 'voters:prospect_list' %}" class="border-transparent text-gray-500 hover:border-blue-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        {% url 'voters:prospect_list' as prospect_list_url %}
+                        <a href="{{ prospect_list_url }}" class="{% if request.resolver_match.url_name == 'prospect_list' %}border-blue-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-blue-500 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             Prospectos
                         </a>
-                        <a href="{% url 'voters:prospect_create' %}" class="border-transparent text-gray-500 hover:border-blue-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        {% url 'voters:prospect_create' as prospect_create_url %}
+                        <a href="{{ prospect_create_url }}" class="{% if request.resolver_match.url_name == 'prospect_create' %}border-blue-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-blue-500 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             Crear Prospecto
                         </a>
                     </div>
                 </div>
-                <div class="flex items-center">
+                <div class="hidden sm:flex items-center">
                     <span class="text-gray-700 mr-4">{{ user.email }}</span>
                     <form method="post" action="{% url 'users:logout' %}" class="inline">
                         {% csrf_token %}
@@ -60,6 +100,36 @@
                 </div>
             </div>
         </div>
+        <!-- Mobile menu -->
+        <div class="hidden" id="mobile-menu">
+            <div class="pt-2 pb-3 space-y-1 bg-white border-t">
+                {% url 'voters:dashboard' as dashboard_url %}
+                <a href="{{ dashboard_url }}" class="{% if request.resolver_match.url_name == 'dashboard' %}bg-blue-50 border-blue-500 text-blue-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Dashboard
+                </a>
+                {% url 'voters:prospect_list' as prospect_list_url %}
+                <a href="{{ prospect_list_url }}" class="{% if request.resolver_match.url_name == 'prospect_list' %}bg-blue-50 border-blue-500 text-blue-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Prospectos
+                </a>
+                {% url 'voters:prospect_create' as prospect_create_url %}
+                <a href="{{ prospect_create_url }}" class="{% if request.resolver_match.url_name == 'prospect_create' %}bg-blue-50 border-blue-500 text-blue-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Crear Prospecto
+                </a>
+                <div class="pt-4 pb-3 border-t border-gray-200">
+                    <div class="px-4">
+                        <div class="text-base font-medium text-gray-800">{{ user.email }}</div>
+                    </div>
+                    <div class="mt-3 space-y-1">
+                        <form method="post" action="{% url 'users:logout' %}" class="px-4">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full text-left block px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-md">
+                                Cerrar Sesión
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </nav>
     {% endif %}
 
@@ -67,15 +137,65 @@
     {% if messages %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
         {% for message in messages %}
-        <div class="fade-in rounded-lg p-4 mb-4 {% if message.tags == 'success' %}bg-green-100 border border-green-400 text-green-700{% elif message.tags == 'error' %}bg-red-100 border border-red-400 text-red-700{% else %}bg-blue-100 border border-blue-400 text-blue-700{% endif %}">
-            <p class="font-medium">{{ message }}</p>
+        <div class="fade-in rounded-lg p-4 mb-4 relative {% if message.tags == 'success' %}bg-green-100 border border-green-400 text-green-700{% elif message.tags == 'error' %}bg-red-100 border border-red-400 text-red-700{% else %}bg-blue-100 border border-blue-400 text-blue-700{% endif %}" id="message-{{ forloop.counter }}">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    {% if message.tags == 'success' %}
+                        <svg class="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                    {% elif message.tags == 'error' %}
+                        <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    {% else %}
+                        <svg class="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                        </svg>
+                    {% endif %}
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="font-medium">{{ message }}</p>
+                </div>
+                <div class="ml-4 flex-shrink-0">
+                    <button type="button" class="inline-flex rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 {% if message.tags == 'success' %}text-green-500 hover:text-green-600 focus:ring-green-500{% elif message.tags == 'error' %}text-red-500 hover:text-red-600 focus:ring-red-500{% else %}text-blue-500 hover:text-blue-600 focus:ring-blue-500{% endif %}" onclick="closeMessage('message-{{ forloop.counter }}')">
+                        <span class="sr-only">Cerrar</span>
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
         {% endfor %}
     </div>
+    <script>
+        function closeMessage(messageId) {
+            const message = document.getElementById(messageId);
+            if (message) {
+                message.style.transition = 'opacity 0.3s ease-out';
+                message.style.opacity = '0';
+                setTimeout(() => message.remove(), 300);
+            }
+        }
+        // Auto-hide messages after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const messages = document.querySelectorAll('[id^="message-"]');
+            messages.forEach(function(message) {
+                setTimeout(function() {
+                    if (message && message.parentElement) {
+                        message.style.transition = 'opacity 0.3s ease-out';
+                        message.style.opacity = '0';
+                        setTimeout(() => message.remove(), 300);
+                    }
+                }, 5000);
+            });
+        });
+    </script>
     {% endif %}
 
     <!-- Main Content -->
-    <main class="{% if user.is_authenticated %}max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8{% endif %}">
+    <main class="{% if user.is_authenticated %}max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow{% else %}flex-grow{% endif %}">
         {% block content %}
         {% endblock %}
     </main>
@@ -88,5 +208,6 @@
             </p>
         </div>
     </footer>
+    </div>
 </body>
 </html>

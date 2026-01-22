@@ -4,11 +4,30 @@
 
 {% block content %}
 <div class="fade-in max-w-4xl mx-auto">
+    <!-- Breadcrumbs -->
+    <nav class="mb-4" aria-label="Breadcrumb">
+        <ol class="flex items-center space-x-2 text-sm text-gray-500">
+            <li><a href="{% url 'voters:dashboard' %}" class="hover:text-gray-700 transition-colors">Dashboard</a></li>
+            <li>
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                </svg>
+            </li>
+            <li><a href="{% url 'voters:prospect_list' %}" class="hover:text-gray-700 transition-colors">Prospectos</a></li>
+            <li>
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                </svg>
+            </li>
+            <li class="text-gray-900 font-medium">{{ prospect.get_full_name }}</li>
+        </ol>
+    </nav>
+    
     <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-900">Detalles del Prospecto</h1>
     </div>
 
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
         <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900">{{ prospect.get_full_name }}</h2>
         </div>

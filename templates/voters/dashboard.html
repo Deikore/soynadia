@@ -11,7 +11,7 @@
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0 bg-blue-500 rounded-md p-3">
                     <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,7 +27,7 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
                     <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,7 +42,7 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0 bg-purple-500 rounded-md p-3">
                     <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +59,7 @@
     </div>
 
     <!-- Recent Prospects -->
-    <div class="bg-white rounded-lg shadow">
+    <div class="bg-white rounded-lg shadow-md">
         <div class="px-6 py-4 border-b border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900">Prospectos Recientes</h2>
         </div>
@@ -78,7 +78,7 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for prospect in recent_prospects %}
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-blue-50 transition-colors duration-150">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {{ prospect.identification_number }}
                         </td>

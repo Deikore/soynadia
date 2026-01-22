@@ -96,7 +96,6 @@ def prospect_create(request):
             prospect = form.save(commit=False)
             prospect.created_by = request.user
             prospect.save()
-            form.save_m2m()  # Guardar relaciones many-to-many
             
             # Si no tiene orígenes asignados, asignar "manual" por defecto
             if not prospect.origins.exists():
@@ -174,7 +173,6 @@ def prospect_update(request, pk):
         form = ProspectForm(request.POST, instance=prospect)
         if form.is_valid():
             form.save()
-            form.save_m2m()  # Guardar relaciones many-to-many
             messages.success(request, _('Prospecto actualizado exitosamente.'))
             return redirect('voters:prospect_detail', pk=pk)
     else:

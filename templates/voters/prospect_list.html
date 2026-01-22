@@ -10,7 +10,7 @@
     </div>
 
     <!-- Search Form -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <form method="get" class="space-y-4">
             <div>
                 {{ search_form.identification_number.label_tag }}
@@ -31,7 +31,7 @@
     </div>
 
     <!-- Results -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -47,7 +47,7 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for prospect in prospects %}
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-blue-50 transition-colors duration-150">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {{ prospect.identification_number }}
                         </td>
