@@ -29,6 +29,8 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 # /static/ - NO ignorar, necesitamos los archivos fuente estáticos (logos, etc.)
+# Pero ignorar el CSS compilado (se genera en build)
+static/css/output.css
 /media/
 staticfiles/  # Solo ignorar el directorio generado por collectstatic
 

@@ -11,6 +11,11 @@ echo "PostgreSQL is ready!"
 echo "Running migrations..."
 python manage.py migrate --noinput
 
+echo "Compiling Tailwind CSS..."
+if [ -f /app/static/css/input.css ] && [ -f /usr/local/bin/tailwindcss ]; then
+    tailwindcss -i /app/static/css/input.css -o /app/static/css/output.css --minify || echo "Warning: Tailwind compilation failed, using CDN fallback"
+fi
+
 echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear
 

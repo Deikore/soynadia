@@ -6,7 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SoyNadia{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{% static 'images/logo/favicon.ico' %}">
+    {% if DEBUG %}
     <script src="https://cdn.tailwindcss.com"></script>
+    {% else %}
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+    {% endif %}
     <style>
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }

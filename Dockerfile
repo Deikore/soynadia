@@ -14,14 +14,28 @@ RUN apt-get update && apt-get install -y \
     netcat-traditional \
     nginx \
     supervisor \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Tailwind CSS Standalone CLI
+RUN curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
+    chmod +x tailwindcss-linux-x64 && \
+    mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
 
 # Install Python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Copy project
+# Copy project files needed for Tailwind compilation first (for better caching)
+COPY tailwind.config.js /app/
+COPY static/css/input.css /app/static/css/
+
+# Compile Tailwind CSS (before copying all files to speed up rebuilds)
+RUN mkdir -p /app/static/css && \
+    tailwindcss -i /app/static/css/input.css -o /app/static/css/output.css --minify
+
+# Copy rest of project
 COPY . /app/
 
 # Copy nginx configuration
