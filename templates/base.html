@@ -1,9 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SoyNadia{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'images/logo/favicon.ico' %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @keyframes fadeIn {
@@ -23,8 +25,16 @@
             <div class="flex justify-between h-16">
                 <div class="flex">
                     <div class="flex-shrink-0 flex items-center">
-                        <a href="{% url 'voters:dashboard' %}" class="text-2xl font-bold text-blue-600">
-                            SoyNadia
+                        <a href="{% url 'voters:dashboard' %}" class="flex items-center space-x-2 hover:opacity-80 transition-opacity" title="Ir al Dashboard">
+                            <picture>
+                                <source srcset="{% static 'images/logo/logo.svg' %}" type="image/svg+xml">
+                                <source srcset="{% static 'images/logo/logo.png' %}" type="image/png">
+                                <img src="{% static 'images/logo/logo.png' %}" 
+                                     alt="SoyNadia Logo" 
+                                     class="h-12 w-auto max-w-[200px] object-contain"
+                                     onerror="this.onerror=null; this.style.display='none'; this.parentElement.nextElementSibling.style.display='inline-block';">
+                            </picture>
+                            <span class="text-2xl font-bold text-blue-600" style="display:none;">SoyNadia</span>
                         </a>
                     </div>
                     <div class="hidden sm:ml-6 sm:flex sm:space-x-8">

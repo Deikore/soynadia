@@ -34,9 +34,20 @@ class ProspectViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Guardar el usuario que creó el prospecto.
+        Guardar el usuario que creó el prospecto y asignar origen "manual" por defecto.
         """
-        serializer.save(created_by=self.request.user)
+        prospect = serializer.save(created_by=self.request.user)
+        # Si no tiene orígenes asignados, asignar "manual" por defecto
+        if not prospect.origins.exists():
+            from .models import OriginProspect
+            manual_origin, _ = OriginProspect.objects.get_or_create(
+                name='manual',
+                defaults={
+                    'description': 'Prospecto creado manualmente',
+                    'is_active': True
+                }
+            )
+            prospect.origins.add(manual_origin)
 
     def create(self, request, *args, **kwargs):
         """

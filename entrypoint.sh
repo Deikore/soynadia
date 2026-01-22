@@ -17,6 +17,8 @@ python manage.py collectstatic --noinput --clear
 echo "Creating superuser if it doesn't exist..."
 python manage.py shell << END
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
+from voters.models import OriginProspect
 import os
 
 User = get_user_model()
@@ -35,6 +37,36 @@ if not User.objects.filter(email=admin_email).exists():
     print(f'Superuser created: {admin_email}')
 else:
     print(f'Superuser already exists: {admin_email}')
+
+# Crear origen "manual" por defecto
+OriginProspect.objects.get_or_create(
+    name='manual',
+    defaults={
+        'description': 'Prospecto creado manualmente',
+        'is_active': True
+    }
+)
+print('Origin "manual" created or already exists')
+
+# Crear grupo "Puede Eliminar Prospectos" y asignar permiso
+group, created = Group.objects.get_or_create(name='Puede Eliminar Prospectos')
+if created:
+    # Obtener el permiso personalizado
+    permission = Permission.objects.get(codename='can_delete_prospects', content_type__app_label='voters')
+    group.permissions.add(permission)
+    print('Group "Puede Eliminar Prospectos" created with permission')
+else:
+    print('Group "Puede Eliminar Prospectos" already exists')
+
+# Crear grupo "Puede Editar Prospectos" y asignar permiso
+group, created = Group.objects.get_or_create(name='Puede Editar Prospectos')
+if created:
+    # Obtener el permiso personalizado
+    permission = Permission.objects.get(codename='can_edit_prospects', content_type__app_label='voters')
+    group.permissions.add(permission)
+    print('Group "Puede Editar Prospectos" created with permission')
+else:
+    print('Group "Puede Editar Prospectos" already exists')
 END
 
 echo "Starting application with Supervisor..."

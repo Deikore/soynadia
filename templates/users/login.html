@@ -1,14 +1,25 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Iniciar Sesión - SoyNadia{% endblock %}
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
     <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-2xl">
-        <div>
-            <h2 class="text-center text-4xl font-extrabold text-gray-900">
-                SoyNadia
-            </h2>
+        <div class="text-center">
+            <div class="flex justify-center mb-4">
+                <picture>
+                    <source srcset="{% static 'images/logo/logo.svg' %}" type="image/svg+xml">
+                    <source srcset="{% static 'images/logo/logo.png' %}" type="image/png">
+                    <img src="{% static 'images/logo/logo.png' %}" 
+                         alt="SoyNadia Logo" 
+                         class="h-16 w-auto max-w-[250px] mx-auto"
+                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+                </picture>
+                <h2 class="text-4xl font-extrabold text-gray-900" style="display:none;">
+                    SoyNadia
+                </h2>
+            </div>
             <p class="mt-2 text-center text-sm text-gray-600">
                 Ingresa a tu cuenta
             </p>

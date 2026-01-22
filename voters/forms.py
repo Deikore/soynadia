@@ -1,5 +1,7 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+import re
 from .models import Prospect
 
 
@@ -25,15 +27,59 @@ class ProspectForm(forms.ModelForm):
             }),
             'phone_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'placeholder': 'Ej: 3001234567'
+                'placeholder': 'Ej: +57 313 416 5999 o 3134165999'
             }),
         }
         labels = {
             'identification_number': _('Número de Identificación'),
             'first_name': _('Nombre'),
             'last_name': _('Apellido'),
-            'phone_number': _('Teléfono'),
+            'phone_number': _('Teléfono (Opcional)'),
         }
+    
+    def clean_phone_number(self):
+        """
+        Valida y normaliza el número de teléfono colombiano.
+        Acepta múltiples formatos y almacena solo números (10 dígitos).
+        """
+        phone = self.cleaned_data.get('phone_number')
+        if not phone:
+            return phone  # Opcional, puede estar vacío
+        
+        # Normalizar: quitar espacios, guiones, paréntesis
+        normalized = re.sub(r'[\s\-\(\)]', '', phone.strip())
+        
+        # Quitar prefijo +57 o 57 si existe
+        if normalized.startswith('+57'):
+            normalized = normalized[3:]
+        elif normalized.startswith('57') and len(normalized) == 12:
+            normalized = normalized[2:]
+        
+        # Validar que sean solo números y longitud correcta
+        if not normalized.isdigit() or len(normalized) != 10:
+            raise ValidationError(
+                _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 416 5999, 3134165999')
+            )
+        
+        # Validar que sea un número colombiano válido
+        first_digit = normalized[0]
+        
+        if first_digit == '3':  # Celulares
+            second_digit = normalized[1]
+            # Celulares válidos: 300-399, 310-319, 320-329, 350-359
+            if second_digit not in ['0', '1', '2', '5']:
+                raise ValidationError(
+                    _('Número de celular inválido para Colombia. Debe empezar con 300-399, 310-319, 320-329 o 350-359.')
+                )
+        elif first_digit in ['1', '2', '3', '4', '5', '6', '7', '8']:  # Fijos
+            # Números fijos válidos (códigos de área 1-8)
+            pass  # Válido
+        else:
+            raise ValidationError(
+                _('Número inválido para Colombia. Debe ser un celular (3XX) o fijo (1-8XX).')
+            )
+        
+        return normalized  # Retornar solo números: 3134165999
 
 
 class ProspectSearchForm(forms.Form):

@@ -22,7 +22,13 @@
 
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Teléfono</dt>
-                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.phone_number }}</dd>
+                    <dd class="mt-1 text-lg text-gray-900">
+                        {% if prospect.phone_number %}
+                            {{ prospect.phone_number }}
+                        {% else %}
+                            <span class="text-gray-400 italic">No proporcionado</span>
+                        {% endif %}
+                    </dd>
                 </div>
 
                 <div>
@@ -48,19 +54,123 @@
                 {% if prospect.created_by %}
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Creado Por</dt>
-                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.created_by.email }}</dd>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.created_by.get_full_name|default:prospect.created_by.email }}</dd>
                 </div>
                 {% endif %}
+
+                <div class="md:col-span-2">
+                    <dt class="text-sm font-medium text-gray-500">Orígenes</dt>
+                    <dd class="mt-1">
+                        {% if prospect.origins.all %}
+                            <div class="flex flex-wrap gap-2">
+                                {% for origin in prospect.origins.all %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                                        {{ origin.name }}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-gray-400 italic">Sin orígenes asignados</span>
+                        {% endif %}
+                    </dd>
+                </div>
             </dl>
         </div>
 
+        <!-- Información Electoral -->
+        {% if prospect.department or prospect.municipality or prospect.polling_station or prospect.polling_station_address or prospect.table or prospect.notice or prospect.resolution or prospect.notice_date or prospect.polling_station_consulted %}
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Información Electoral</h3>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% if prospect.department %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Departamento</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.department }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.municipality %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Municipio</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.municipality }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.polling_station %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Puesto</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.polling_station }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.polling_station_address %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Dirección Mesa</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.polling_station_address }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.table %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Mesa</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.table }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.notice %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Novedad</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.notice }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.resolution %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Resolución</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.resolution }}</dd>
+                </div>
+                {% endif %}
+
+                {% if prospect.notice_date %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Fecha de Novedad</dt>
+                    <dd class="mt-1 text-lg text-gray-900">{{ prospect.notice_date }}</dd>
+                </div>
+                {% endif %}
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Consulta Puesto Votación</dt>
+                    <dd class="mt-1 text-lg text-gray-900">
+                        {% if prospect.polling_station_consulted %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                                Sí
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                                No
+                            </span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+        {% endif %}
+        </div>
+
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex space-x-3">
+            {% if can_edit_prospects %}
             <a href="{% url 'voters:prospect_update' prospect.pk %}" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium text-center transition-colors">
                 Editar
             </a>
+            {% endif %}
+            {% if can_delete_prospects %}
             <a href="{% url 'voters:prospect_delete' prospect.pk %}" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium text-center transition-colors">
                 Eliminar
             </a>
+            {% endif %}
             <a href="{% url 'voters:prospect_list' %}" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium text-center transition-colors">
                 Volver
             </a>
