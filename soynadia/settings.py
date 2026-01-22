@@ -25,6 +25,25 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+# CSRF Trusted Origins (required for Cloudflare Tunnel and reverse proxies)
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+
+# If CSRF_TRUSTED_ORIGINS is empty, try to derive from ALLOWED_HOSTS
+if not CSRF_TRUSTED_ORIGINS and ALLOWED_HOSTS:
+    # Auto-generate CSRF_TRUSTED_ORIGINS from ALLOWED_HOSTS
+    # For Cloudflare Tunnel, use https://
+    CSRF_TRUSTED_ORIGINS = [
+        f"https://{host}" if not host.startswith('http') else host
+        for host in ALLOWED_HOSTS
+        if host not in ['localhost', '127.0.0.1', '*']
+    ]
+    # Add http:// for localhost in development
+    if DEBUG:
+        CSRF_TRUSTED_ORIGINS.extend([
+            f"http://{host}" for host in ALLOWED_HOSTS
+            if host in ['localhost', '127.0.0.1']
+        ])
+
 
 # Application definition
 
@@ -188,3 +207,12 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=True)
     CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=True)
+
+# Proxy settings (for Cloudflare Tunnel and reverse proxies)
+# Trust proxy headers from Nginx/Cloudflare
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
+# Cloudflare sends CF-Visitor header to indicate original scheme
+# Django will trust X-Forwarded-Proto from Nginx
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

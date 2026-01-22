@@ -7,7 +7,7 @@
 cp env.example .env
 
 # 2. Iniciar servicios
-docker-compose up -d --build
+docker compose up -d --build
 
 # 3. Acceder
 # Web: http://localhost
@@ -22,8 +22,8 @@ docker-compose up -d --build
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker ubuntu
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+# Docker Compose V2 viene integrado con Docker (no necesita instalación separada)
+# Verificar: docker compose version
 
 # 2. Clonar proyecto
 git clone <tu-repo>
@@ -35,20 +35,27 @@ nano .env
 # IMPORTANTE: ADMIN_EMAIL, ADMIN_PASSWORD, POSTGRES_PASSWORD
 
 # 4. Desplegar
-docker-compose up -d --build
+docker compose up -d --build
 
 # 5. Verificar
-docker-compose ps
-docker-compose logs -f web
+docker compose ps
+docker compose logs -f web
 
 # 6. Cambiar contraseña admin
-docker-compose exec web python manage.py changepassword admin@soynadia.com
+docker compose exec web python manage.py changepassword admin@soynadia.com
+
+# 7. Configurar auto-inicio (OPCIONAL pero recomendado)
+sudo cp soynadia-docker.service /etc/systemd/system/
+sudo nano /etc/systemd/system/soynadia-docker.service  # Ajustar ruta si es necesario
+sudo systemctl daemon-reload
+sudo systemctl enable soynadia-docker.service
+sudo systemctl start soynadia-docker.service
 ```
 
 ## Crear API Key
 
 ```bash
-docker-compose exec web python manage.py shell
+docker compose exec web python manage.py shell
 ```
 
 ```python
@@ -106,23 +113,23 @@ python3 -c "from django.core.management.utils import get_random_secret_key; prin
 
 ```bash
 # Ver logs
-docker-compose logs -f web
+docker compose logs -f web
 
 # Reiniciar
-docker-compose restart
+docker compose restart
 
 # Backup DB
-docker-compose exec db pg_dump -U postgres soynadia > backup.sql
+docker compose exec db pg_dump -U postgres soynadia > backup.sql
 
 # Restore DB
-docker-compose exec -T db psql -U postgres soynadia < backup.sql
+docker compose exec -T db psql -U postgres soynadia < backup.sql
 ```
 
 ## Troubleshooting
 
 - **Error de permisos**: `chmod +x entrypoint.sh`
 - **DB no conecta**: Verificar variables en .env
-- **502 Bad Gateway**: Ver logs con `docker-compose logs web`
+- **502 Bad Gateway**: Ver logs con `docker compose logs web`
 
 ---
 
