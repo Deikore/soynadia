@@ -14,6 +14,7 @@ Sistema completo de gestión de prospectos con Django, PostgreSQL, API REST y de
 - ✅ Nginx como proxy reverso
 - ✅ PostgreSQL como base de datos
 - ✅ Listo para producción en AWS EC2
+- ✅ Soporte para Cloudflare Tunnel (aplicación web + base de datos)
 
 ## 📋 Requisitos
 
@@ -320,6 +321,8 @@ Esto creará un archivo de configuración en `~/.cloudflared/config.yml`.
 
 Edita `~/.cloudflared/config.yml`:
 
+**Configuración básica (solo aplicación web):**
+
 ```yaml
 tunnel: <tu-tunnel-id>
 credentials-file: /home/ubuntu/.cloudflared/<tunnel-id>.json
@@ -329,6 +332,31 @@ ingress:
     service: http://localhost:80
   - service: http_status:404
 ```
+
+**Configuración completa (aplicación web + PostgreSQL):**
+
+```yaml
+tunnel: <tu-tunnel-id>
+credentials-file: /home/ubuntu/.cloudflared/<tunnel-id>.json
+
+ingress:
+  # Aplicación web Django
+  - hostname: soynadia.tu-dominio.com
+    service: http://localhost:80
+  
+  # Base de datos PostgreSQL (opcional, solo si necesitas acceso externo)
+  - hostname: db-soynadia.tu-dominio.com
+    service: tcp://localhost:5432
+    originRequest:
+      noHappyEyeballs: true
+      tcpKeepAlive: 30s
+      connectTimeout: 30s
+  
+  # Catch-all rule (debe ser el último)
+  - service: http_status:404
+```
+
+**Nota**: Para PostgreSQL necesitas crear un subdominio adicional en Cloudflare DNS (por ejemplo: `db-soynadia.tu-dominio.com`) que apunte al mismo tunnel.
 
 #### 5. Configurar Variables de Entorno
 
@@ -351,34 +379,129 @@ SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
 ```
 
-#### 6. Exponer Base de Datos (Opcional)
+#### 6. Configurar DNS en Cloudflare
 
-Si necesitas acceso externo a PostgreSQL, configura el puerto en `.env`:
+Para que el tunnel funcione, necesitas crear registros DNS en Cloudflare:
+
+1. **Para la aplicación web:**
+   - Tipo: `CNAME`
+   - Nombre: `soynadia` (o el subdominio que prefieras)
+   - Contenido: `<tu-tunnel-id>.cfargotunnel.com`
+   - Proxy: Activado (nube naranja)
+
+2. **Para PostgreSQL (si lo expones):**
+   - Tipo: `CNAME`
+   - Nombre: `db-soynadia` (o el subdominio que prefieras)
+   - Contenido: `<tu-tunnel-id>.cfargotunnel.com`
+   - Proxy: Activado (nube naranja)
+
+**Nota**: El `<tu-tunnel-id>` lo obtienes cuando ejecutas `cloudflared tunnel create soynadia`.
+
+#### 7. Exponer Base de Datos a través de Cloudflare Tunnel
+
+Si necesitas acceso externo a PostgreSQL a través de Cloudflare Tunnel:
+
+**✅ Configuración de Docker (ya está lista):**
+
+El archivo `docker-compose.yml` ya está configurado correctamente:
+- PostgreSQL escucha en todas las interfaces (`listen_addresses='*'`)
+- El puerto 5432 está mapeado al host (`localhost:5432`)
+- No necesitas crear un Dockerfile personalizado para PostgreSQL
+- La imagen oficial `postgres:15-alpine` funciona perfectamente
+
+**Configuración en `.env`:**
 
 ```env
-# Puerto externo para PostgreSQL (ajusta según necesites)
-DB_EXTERNAL_PORT=5432
+# No necesitas exponer el puerto directamente si usas Cloudflare Tunnel
+# El tunnel manejará la conexión de forma segura
+DB_EXTERNAL_PORT=5432  # Solo para referencia, no se expone directamente
 ```
 
-Y en `docker compose.yml` ya está configurado para exponer el puerto.
+**Nota sobre Dockerfile:**
+- ❌ **NO necesitas** crear un Dockerfile personalizado para PostgreSQL
+- ✅ La configuración en `docker-compose.yml` es suficiente
+- ✅ PostgreSQL ya está configurado para escuchar en todas las interfaces
+- ✅ El mapeo de puertos ya está configurado
 
-**⚠️ IMPORTANTE**: Si expones PostgreSQL, asegúrate de:
-- Usar contraseñas fuertes
-- Restringir acceso por IP en el Security Group de AWS
-- Considerar usar Cloudflare Tunnel también para la base de datos
+**⚠️ IMPORTANTE - Seguridad de PostgreSQL:**
 
-#### 7. Iniciar el Tunnel
+1. **Contraseñas fuertes**: Usa contraseñas muy seguras en `POSTGRES_PASSWORD`
+2. **No exponer puerto directamente**: Con Cloudflare Tunnel, NO necesitas abrir el puerto 5432 en el Security Group
+3. **Autenticación adicional**: Considera usar Cloudflare Access para agregar autenticación adicional
+4. **SSL/TLS**: Cloudflare Tunnel encripta automáticamente la conexión
+5. **Restricción de acceso**: Puedes usar Cloudflare Access para limitar quién puede conectarse
+
+**Conectarse a PostgreSQL a través de Cloudflare Tunnel:**
+
+Desde tu máquina local, necesitas usar `cloudflared` como proxy:
+
+```bash
+# Instalar cloudflared en tu máquina local (si no lo tienes)
+# macOS: brew install cloudflared
+# Linux: descargar desde https://github.com/cloudflare/cloudflared/releases
+# Windows: descargar desde https://github.com/cloudflare/cloudflared/releases
+
+# Opción 1: Con Cloudflare Access (recomendado, más seguro)
+# Esto abrirá tu navegador para autenticarte
+cloudflared access tcp --hostname db-soynadia.tu-dominio.com --url localhost:5432
+
+# Opción 2: Sin Cloudflare Access (solo tunnel)
+cloudflared tunnel --url tcp://db-soynadia.tu-dominio.com:5432
+
+# En otra terminal, conectarse a PostgreSQL
+psql -h localhost -p 5432 -U postgres -d soynadia
+```
+
+**Usar un cliente gráfico (DBeaver, pgAdmin, TablePlus, etc.):**
+
+1. **Con Cloudflare Access:**
+   ```bash
+   # Terminal 1: Iniciar proxy con autenticación
+   cloudflared access tcp --hostname db-soynadia.tu-dominio.com --url localhost:5432
+   ```
+   
+   En tu cliente gráfico:
+   - Host: `localhost`
+   - Puerto: `5432`
+   - Usuario: `postgres` (o el que configuraste)
+   - Contraseña: La de tu `.env`
+   - Base de datos: `soynadia`
+
+2. **Sin Cloudflare Access:**
+   ```bash
+   # Terminal 1: Iniciar proxy simple
+   cloudflared tunnel --url tcp://db-soynadia.tu-dominio.com:5432
+   ```
+   
+   Luego conecta igual que arriba.
+
+**Nota**: El proxy debe estar corriendo mientras uses la conexión a la base de datos.
+
+#### 8. Iniciar el Tunnel
 
 ```bash
 # Ejecutar como servicio
 sudo cloudflared service install
 sudo systemctl start cloudflared
 sudo systemctl enable cloudflared
+
+# Verificar que el servicio está corriendo
+sudo systemctl status cloudflared
+
+# Ver logs del tunnel
+sudo journalctl -u cloudflared -f
 ```
 
-#### 8. Verificar el Despliegue
+#### 9. Verificar el Despliegue
 
+**Aplicación Web:**
 Visita: `https://soynadia.tu-dominio.com`
+
+**Base de Datos (si la expusiste):**
+```bash
+# Desde tu máquina local, prueba la conexión
+cloudflared access tcp --hostname db-soynadia.tu-dominio.com --url localhost:5432
+```
 
 ### Configuración de Nginx para Cloudflare
 
@@ -395,16 +518,52 @@ Cloudflare envía estos headers que Django puede usar:
 
 1. **Error CSRF**: Asegúrate de que `CSRF_TRUSTED_ORIGINS` incluya tu dominio de Cloudflare con `https://`
 2. **Sesiones no funcionan**: Verifica que `SESSION_COOKIE_SECURE=True` y `CSRF_COOKIE_SECURE=True`
-3. **Base de datos no accesible**: Verifica que el puerto esté expuesto y el Security Group permita conexiones
+3. **Base de datos no accesible**:
+   - Verifica que el tunnel esté corriendo: `sudo systemctl status cloudflared`
+   - Verifica los logs: `sudo journalctl -u cloudflared -f`
+   - Asegúrate de que el DNS esté configurado correctamente en Cloudflare
+   - Verifica que el servicio PostgreSQL esté corriendo: `docker compose ps db`
+4. **Tunnel no inicia**: Verifica que el archivo de credenciales existe y tiene permisos correctos
+5. **Error de conexión a PostgreSQL**: Asegúrate de usar `cloudflared access tcp` como proxy local
+
+### Proteger PostgreSQL con Cloudflare Access (Recomendado)
+
+Para agregar una capa adicional de seguridad a PostgreSQL, puedes usar Cloudflare Access:
+
+1. **Instalar Cloudflare Access en tu máquina local:**
+   ```bash
+   # macOS
+   brew install cloudflared
+   
+   # Linux
+   # Descargar desde https://github.com/cloudflare/cloudflared/releases
+   ```
+
+2. **Configurar Cloudflare Access en el Dashboard:**
+   - Ve a Cloudflare Dashboard → Zero Trust → Access → Applications
+   - Crea una nueva aplicación para `db-soynadia.tu-dominio.com`
+   - Configura políticas de acceso (email, IP, etc.)
+   - Guarda la configuración
+
+3. **Conectarse con autenticación:**
+   ```bash
+   # Esto abrirá tu navegador para autenticarte
+   cloudflared access tcp --hostname db-soynadia.tu-dominio.com --url localhost:5432
+   
+   # Luego conecta normalmente
+   psql -h localhost -p 5432 -U postgres -d soynadia
+   ```
 
 ### Ventajas de Cloudflare Tunnel
 
 - ✅ No necesitas abrir puertos en el firewall
-- ✅ SSL/TLS automático
+- ✅ SSL/TLS automático para aplicación web y base de datos
 - ✅ Protección DDoS incluida
-- ✅ CDN global
+- ✅ CDN global para la aplicación web
 - ✅ Acceso seguro sin VPN
 - ✅ Fácil de configurar
+- ✅ Base de datos accesible de forma segura sin exponer puertos
+- ✅ Opción de Cloudflare Access para autenticación adicional
 
 ## 👤 Gestión de Usuarios
 

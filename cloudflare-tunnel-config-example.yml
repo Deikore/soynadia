@@ -1,0 +1,23 @@
+# Ejemplo de configuración de Cloudflare Tunnel para SoyNadia
+# Copia este archivo a ~/.cloudflared/config.yml y ajusta según tus necesidades
+
+tunnel: <tu-tunnel-id>
+credentials-file: /home/ubuntu/.cloudflared/<tunnel-id>.json
+
+ingress:
+  # Aplicación web Django
+  - hostname: soynadia.tu-dominio.com
+    service: http://localhost:80
+  
+  # Base de datos PostgreSQL (opcional)
+  # Requiere crear un subdominio en Cloudflare DNS: db-soynadia.tu-dominio.com
+  - hostname: db-soynadia.tu-dominio.com
+    service: tcp://localhost:5432
+    originRequest:
+      noHappyEyeballs: true
+      tcpKeepAlive: 30s
+      connectTimeout: 30s
+      tcpKeepAliveInitialDelay: 10s
+  
+  # Catch-all rule (debe ser siempre el último)
+  - service: http_status:404

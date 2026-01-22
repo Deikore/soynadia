@@ -11,6 +11,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-soynadia}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # Asegurar que PostgreSQL escuche en todas las interfaces (necesario para Cloudflare Tunnel)
+      - POSTGRES_HOST_AUTH_METHOD=md5
+    # Configuración adicional para asegurar que PostgreSQL escuche correctamente
+    command: postgres -c listen_addresses='*'
     networks:
       - soynadia_network
     healthcheck:

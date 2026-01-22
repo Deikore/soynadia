@@ -80,8 +80,36 @@ curl -X POST http://localhost/api/prospects/ \
   }'
 ```
 
+## Cloudflare Tunnel (PostgreSQL)
+
+Para exponer PostgreSQL a través de Cloudflare Tunnel:
+
+```bash
+# 1. Editar configuración del tunnel
+nano ~/.cloudflared/config.yml
+
+# 2. Agregar entrada para PostgreSQL:
+# - hostname: db-soynadia.tu-dominio.com
+#   service: tcp://localhost:5432
+
+# 3. Crear DNS en Cloudflare:
+# CNAME: db-soynadia -> <tunnel-id>.cfargotunnel.com
+
+# 4. Reiniciar tunnel
+sudo systemctl restart cloudflared
+
+# 5. Conectarse desde local (con cloudflared instalado)
+cloudflared access tcp --hostname db-soynadia.tu-dominio.com --url localhost:5432
+# En otra terminal: psql -h localhost -p 5432 -U postgres -d soynadia
+```
+
 ## Security Group EC2
 
+**Con Cloudflare Tunnel:**
+- Puerto 22 (SSH) - Tu IP
+- NO necesitas abrir puertos 80/443 (Cloudflare Tunnel los maneja)
+
+**Sin Cloudflare Tunnel:**
 - Puerto 22 (SSH) - Tu IP
 - Puerto 80 (HTTP) - 0.0.0.0/0
 - Puerto 443 (HTTPS) - 0.0.0.0/0
