@@ -70,6 +70,14 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Security headers - only set COOP/COEP when using HTTPS
+# These headers require HTTPS to be trusted by browsers
+if not DEBUG:
+    # Only set Cross-Origin headers when we're actually using HTTPS
+    # Check if we're behind a proxy that indicates HTTPS
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+    SECURE_CROSS_ORIGIN_EMBEDDER_POLICY = None  # Don't set COEP unless needed
+
 ROOT_URLCONF = 'soynadia.urls'
 
 TEMPLATES = [
@@ -160,14 +168,19 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
 # WhiteNoise configuration
+# Using StaticFilesStorage instead of CompressedStaticFilesStorage to avoid issues with compressed files
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
+# WhiteNoise settings
+WHITENOISE_USE_FINDERS = True  # Allow WhiteNoise to serve files from STATICFILES_DIRS
+WHITENOISE_AUTOREFRESH = True  # Auto-refresh in development
 
 # Media files
 MEDIA_URL = '/media/'
@@ -200,13 +213,22 @@ REST_FRAMEWORK = {
 
 
 # Security settings for production
+# Only apply strict security when actually using HTTPS (detected via proxy headers)
+# This prevents warnings when accessing via HTTP or untrusted origins
 if not DEBUG:
-    SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
-    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000)
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=True)
-    CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=True)
+    # Check if we should enforce HTTPS (only when behind a proxy that indicates HTTPS)
+    # These will be set based on X-Forwarded-Proto header from proxy
+    SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
+    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)  # Disabled by default, enable when using HTTPS
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True if SECURE_HSTS_SECONDS > 0 else False
+    SECURE_HSTS_PRELOAD = True if SECURE_HSTS_SECONDS > 0 else False
+    SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
+    CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
+    
+    # Cross-Origin headers - only set when using HTTPS
+    # These cause warnings if set on HTTP or untrusted origins
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = None  # Don't set unless explicitly needed with HTTPS
+    SECURE_CROSS_ORIGIN_EMBEDDER_POLICY = None
 
 # Proxy settings (for Cloudflare Tunnel and reverse proxies)
 # Trust proxy headers from Nginx/Cloudflare

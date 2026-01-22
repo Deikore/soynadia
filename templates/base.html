@@ -57,9 +57,9 @@
                                 <img src="{% static 'images/logo/logo.png' %}" 
                                      alt="SoyNadia Logo" 
                                      class="h-12 w-auto max-w-[200px] object-contain"
-                                     onerror="this.onerror=null; this.style.display='none'; this.parentElement.nextElementSibling.style.display='inline-block';">
+                                     onerror="this.onerror=null; this.style.display='none'; const fallback = this.closest('a').querySelector('.logo-fallback'); if (fallback) fallback.style.display='inline-block';">
                             </picture>
-                            <span class="text-2xl font-bold text-blue-600" style="display:none;">SoyNadia</span>
+                            <span class="text-2xl font-bold text-blue-600 logo-fallback" style="display:none;">SoyNadia</span>
                         </a>
                     </div>
                     <!-- Mobile menu button -->
