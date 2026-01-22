@@ -10,7 +10,7 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0 bg-red-600 rounded-md p-3">
@@ -52,6 +52,21 @@
                 <div class="ml-5 w-0 flex-1">
                     <a href="{% url 'voters:prospect_list' %}" class="text-sm font-medium text-gray-700 hover:text-red-600 truncate">
                         Buscar Prospectos
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-red-600 rounded-md p-3">
+                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <a href="{% url 'voters:prospect_bulk_upload' %}" class="text-sm font-medium text-gray-700 hover:text-red-600 truncate">
+                        Carga Masiva
                     </a>
                 </div>
             </div>

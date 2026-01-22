@@ -95,3 +95,36 @@ class ProspectSearchForm(forms.Form):
             'autofocus': True
         })
     )
+
+
+class BulkUploadForm(forms.Form):
+    """
+    Formulario para cargar prospectos de manera masiva desde un archivo CSV.
+    """
+    csv_file = forms.FileField(
+        label=_('Archivo CSV'),
+        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number, first_name, last_name, phone_number, origin'),
+        widget=forms.FileInput(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'accept': '.csv'
+        })
+    )
+    
+    def clean_csv_file(self):
+        """
+        Valida que el archivo sea CSV y tenga un tamaño razonable.
+        """
+        file = self.cleaned_data.get('csv_file')
+        if not file:
+            raise ValidationError(_('Debe seleccionar un archivo.'))
+        
+        # Validar extensión
+        if not file.name.lower().endswith('.csv'):
+            raise ValidationError(_('El archivo debe tener extensión .csv'))
+        
+        # Validar tamaño (10MB máximo)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file.size > max_size:
+            raise ValidationError(_('El archivo es demasiado grande. El tamaño máximo es 10MB.'))
+        
+        return file

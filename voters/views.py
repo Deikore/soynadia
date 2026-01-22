@@ -4,9 +4,14 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.db import transaction
+import csv
+import re
+import io
 from .models import Prospect, OriginProspect
-from .forms import ProspectForm, ProspectSearchForm
+from .forms import ProspectForm, ProspectSearchForm, BulkUploadForm
 
 
 @login_required
@@ -215,3 +220,230 @@ def prospect_delete(request, pk):
         'prospect': prospect,
     }
     return render(request, 'voters/prospect_confirm_delete.html', context)
+
+
+def validate_and_normalize_phone(phone):
+    """
+    Valida y normaliza un número de teléfono colombiano.
+    Retorna el número normalizado (10 dígitos) o None si está vacío.
+    Lanza ValidationError si el número es inválido.
+    """
+    if not phone or not phone.strip():
+        return None
+    
+    # Normalizar: quitar espacios, guiones, paréntesis
+    normalized = re.sub(r'[\s\-\(\)]', '', phone.strip())
+    
+    # Quitar prefijo +57 o 57 si existe
+    if normalized.startswith('+57'):
+        normalized = normalized[3:]
+    elif normalized.startswith('57') and len(normalized) == 12:
+        normalized = normalized[2:]
+    
+    # Validar que sean solo números y longitud correcta
+    if not normalized.isdigit() or len(normalized) != 10:
+        raise ValidationError(
+            _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 416 5999, 3134165999')
+        )
+    
+    # Validar que sea un número colombiano válido
+    first_digit = normalized[0]
+    
+    if first_digit == '3':  # Celulares
+        second_digit = normalized[1]
+        # Celulares válidos: 300-399, 310-319, 320-329, 350-359
+        if second_digit not in ['0', '1', '2', '5']:
+            raise ValidationError(
+                _('Número de celular inválido para Colombia. Debe empezar con 300-399, 310-319, 320-329 o 350-359.')
+            )
+    elif first_digit in ['1', '2', '3', '4', '5', '6', '7', '8']:  # Fijos
+        # Números fijos válidos (códigos de área 1-8)
+        pass  # Válido
+    else:
+        raise ValidationError(
+            _('Número inválido para Colombia. Debe ser un celular (3XX) o fijo (1-8XX).')
+        )
+    
+    return normalized
+
+
+@login_required
+def prospect_bulk_upload(request):
+    """
+    Vista para cargar prospectos de manera masiva desde un archivo CSV.
+    """
+    if request.method == 'POST':
+        form = BulkUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = form.cleaned_data['csv_file']
+            
+            # Leer el archivo CSV
+            try:
+                # Intentar leer con diferentes encodings
+                content = csv_file.read()
+                try:
+                    content_str = content.decode('utf-8-sig')  # UTF-8 con BOM
+                except UnicodeDecodeError:
+                    try:
+                        content_str = content.decode('utf-8')
+                    except UnicodeDecodeError:
+                        content_str = content.decode('latin-1')
+                
+                # Detectar el delimitador (punto y coma o coma)
+                # Leer las primeras líneas para detectar el delimitador más común
+                lines = content_str.split('\n')[:3]  # Primeras 3 líneas
+                semicolon_count = sum(line.count(';') for line in lines if line.strip())
+                comma_count = sum(line.count(',') for line in lines if line.strip())
+                
+                # Usar el delimitador que aparezca más veces
+                # Si ambos tienen la misma cantidad, preferir punto y coma
+                delimiter = ';' if semicolon_count >= comma_count else ','
+                
+                # Leer CSV con el delimitador detectado
+                csv_reader = csv.DictReader(io.StringIO(content_str), delimiter=delimiter)
+                
+                # Validar encabezados requeridos
+                required_headers = ['identification_number', 'first_name', 'last_name', 'phone_number', 'origin']
+                if not csv_reader.fieldnames:
+                    messages.error(request, _('El archivo CSV está vacío o no tiene encabezados válidos.'))
+                    form = BulkUploadForm()
+                    return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
+                
+                if not all(header in csv_reader.fieldnames for header in required_headers):
+                    messages.error(request, _('El archivo CSV debe contener los siguientes encabezados: identification_number, first_name, last_name, phone_number, origin'))
+                    form = BulkUploadForm()
+                    return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
+                
+                # Procesar cada fila
+                results = {
+                    'total': 0,
+                    'created': 0,
+                    'updated': 0,
+                    'errors': []
+                }
+                
+                with transaction.atomic():
+                    for row_num, row in enumerate(csv_reader, start=2):  # Empezar en 2 (después del encabezado)
+                        results['total'] += 1
+                        row_errors = []
+                        
+                        # Validar campos obligatorios
+                        identification_number = row.get('identification_number', '').strip()
+                        first_name = row.get('first_name', '').strip()
+                        last_name = row.get('last_name', '').strip()
+                        phone_number = row.get('phone_number', '').strip()
+                        origin_name = row.get('origin', '').strip()
+                        
+                        if not identification_number:
+                            row_errors.append(_('identification_number es obligatorio'))
+                        if not first_name:
+                            row_errors.append(_('first_name es obligatorio'))
+                        if not last_name:
+                            row_errors.append(_('last_name es obligatorio'))
+                        if not origin_name:
+                            row_errors.append(_('origin es obligatorio'))
+                        
+                        if row_errors:
+                            results['errors'].append({
+                                'row': row_num,
+                                'identification_number': identification_number or '-',
+                                'errors': row_errors
+                            })
+                            continue
+                        
+                        # Validar y normalizar phone_number si existe
+                        normalized_phone = None
+                        if phone_number:
+                            try:
+                                normalized_phone = validate_and_normalize_phone(phone_number)
+                            except ValidationError as e:
+                                row_errors.append(str(e))
+                                results['errors'].append({
+                                    'row': row_num,
+                                    'identification_number': identification_number,
+                                    'errors': row_errors
+                                })
+                                continue
+                        
+                        try:
+                            # Buscar o crear el origin
+                            origin, created = OriginProspect.objects.get_or_create(
+                                name=origin_name,
+                                defaults={
+                                    'description': f'Origen creado desde carga masiva',
+                                    'is_active': True
+                                }
+                            )
+                            
+                            # Buscar si el prospecto ya existe
+                            try:
+                                prospect = Prospect.objects.get(identification_number=identification_number)
+                                # Prospecto existe: actualizar campos y agregar origin
+                                prospect.first_name = first_name
+                                prospect.last_name = last_name
+                                if normalized_phone is not None:
+                                    prospect.phone_number = normalized_phone
+                                prospect.save()
+                                prospect.origins.add(origin)
+                                results['updated'] += 1
+                            except Prospect.DoesNotExist:
+                                # Prospecto no existe: crear nuevo
+                                prospect = Prospect.objects.create(
+                                    identification_number=identification_number,
+                                    first_name=first_name,
+                                    last_name=last_name,
+                                    phone_number=normalized_phone,
+                                    created_by=request.user
+                                )
+                                prospect.origins.add(origin)
+                                results['created'] += 1
+                                
+                        except Exception as e:
+                            row_errors.append(str(e))
+                            results['errors'].append({
+                                'row': row_num,
+                                'identification_number': identification_number,
+                                'errors': row_errors
+                            })
+                
+                # Mostrar mensajes de resultado
+                if results['created'] > 0:
+                    messages.success(request, _('Se crearon {} prospectos exitosamente.').format(results['created']))
+                if results['updated'] > 0:
+                    messages.success(request, _('Se actualizaron {} prospectos exitosamente.').format(results['updated']))
+                if results['errors']:
+                    messages.warning(request, _('Se encontraron {} errores durante la carga.').format(len(results['errors'])))
+                
+                context = {
+                    'form': BulkUploadForm(),
+                    'results': results,
+                }
+                return render(request, 'voters/prospect_bulk_upload.html', context)
+                
+            except Exception as e:
+                messages.error(request, _('Error al procesar el archivo CSV: {}').format(str(e)))
+        else:
+            messages.error(request, _('Por favor, corrija los errores en el formulario.'))
+    else:
+        form = BulkUploadForm()
+    
+    context = {
+        'form': form,
+    }
+    return render(request, 'voters/prospect_bulk_upload.html', context)
+
+
+@login_required
+def download_csv_template(request):
+    """
+    Vista para descargar la plantilla CSV de ejemplo.
+    """
+    # Crear contenido CSV de ejemplo
+    csv_content = 'identification_number;first_name;last_name;phone_number;origin\n'
+    csv_content += '1234567890;Juan;Pérez;3134165999;campaña_2024\n'
+    csv_content += '9876543210;María;García;3201234567;redes_sociales\n'
+    csv_content += '5555555555;Carlos;Rodríguez;;evento_publico\n'
+    
+    response = HttpResponse(csv_content, content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="plantilla_prospectos.csv"'
+    return response
