@@ -39,7 +39,8 @@ RUN mkdir -p /app/static/css && \
 COPY . /app/
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/sites-available/default
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/sites-enabled/default
 
 # Copy supervisor configuration
 RUN mkdir -p /var/log/supervisor

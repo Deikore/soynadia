@@ -23,6 +23,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - soynadia_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   web:
     build: .
     ports:
@@ -48,8 +61,64 @@ services:
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-False}
       - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-False}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - soynadia_network
+    restart: unless-stopped
+
+  celery:
+    build: .
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-please-change-this-key-in-production}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - POSTGRES_DB=${POSTGRES_DB:-soynadia}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    entrypoint: /bin/bash -c "while ! nc -z $$DB_HOST $$DB_PORT; do sleep 0.5; done && python manage.py migrate --noinput && celery -A soynadia worker -l info"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - soynadia_network
+    restart: unless-stopped
+
+  flower:
+    build: .
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-please-change-this-key-in-production}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - POSTGRES_DB=${POSTGRES_DB:-soynadia}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    entrypoint: /bin/bash -c "while ! nc -z $$DB_HOST $$DB_PORT; do sleep 0.5; done && python manage.py migrate --noinput && celery -A soynadia flower --port=5555 --address=0.0.0.0 --url_prefix=/flower/"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - soynadia_network

@@ -5,6 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from .models import Prospect
 from .serializers import ProspectSerializer
 from .authentication import ApiKeyAuthentication
+from .utils import should_trigger_celery_task
+from .tasks import process_prospect
 
 
 class ProspectViewSet(viewsets.ModelViewSet):
@@ -48,6 +50,10 @@ class ProspectViewSet(viewsets.ModelViewSet):
                 }
             )
             prospect.origins.add(manual_origin)
+        
+        # Verificar si se debe ejecutar la tarea de Celery
+        if should_trigger_celery_task(prospect):
+            process_prospect.delay(prospect.id)
 
     def create(self, request, *args, **kwargs):
         """

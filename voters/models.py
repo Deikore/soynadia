@@ -21,6 +21,11 @@ class OriginProspect(models.Model):
     )
     created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
     is_active = models.BooleanField(_('activo'), default=True)
+    enable_consult_polling_station = models.BooleanField(
+        _('habilitar consulta puesto de votación'),
+        default=False,
+        help_text=_('Si está activo, se ejecutará una tarea asíncrona cuando se cree un prospecto con este origen')
+    )
 
     class Meta:
         verbose_name = _('origen de prospecto')

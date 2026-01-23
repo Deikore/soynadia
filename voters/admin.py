@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import Prospect, ApiKey, OriginProspect
+from .utils import should_trigger_celery_task
+from .tasks import process_prospect
 
 
 @admin.register(OriginProspect)
@@ -8,13 +10,13 @@ class OriginProspectAdmin(admin.ModelAdmin):
     """
     Admin para el modelo OriginProspect.
     """
-    list_display = ('name', 'description', 'is_active', 'created_at')
-    list_filter = ('is_active', 'created_at')
+    list_display = ('name', 'description', 'is_active', 'enable_consult_polling_station', 'created_at')
+    list_filter = ('is_active', 'enable_consult_polling_station', 'created_at')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at',)
     fieldsets = (
         (_('Información del Origen'), {
-            'fields': ('name', 'description', 'is_active')
+            'fields': ('name', 'description', 'is_active', 'enable_consult_polling_station')
         }),
         (_('Metadata'), {
             'fields': ('created_at',),
@@ -95,6 +97,10 @@ class ProspectAdmin(admin.ModelAdmin):
                     }
                 )
                 obj.origins.add(manual_origin)
+            
+            # Verificar si se debe ejecutar la tarea de Celery
+            if should_trigger_celery_task(obj):
+                process_prospect.delay(obj.id)
         else:
             super().save_model(request, obj, form, change)
     

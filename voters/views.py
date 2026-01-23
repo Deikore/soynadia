@@ -12,6 +12,8 @@ import re
 import io
 from .models import Prospect, OriginProspect
 from .forms import ProspectForm, ProspectSearchForm, BulkUploadForm
+from .utils import should_trigger_celery_task
+from .tasks import process_prospect
 
 
 @login_required
@@ -112,6 +114,10 @@ def prospect_create(request):
                     }
                 )
                 prospect.origins.add(manual_origin)
+            
+            # Verificar si se debe ejecutar la tarea de Celery
+            if should_trigger_celery_task(prospect):
+                process_prospect.delay(prospect.id)
             
             messages.success(request, _('Prospecto creado exitosamente.'))
             return redirect('voters:prospect_list')
@@ -385,6 +391,9 @@ def prospect_bulk_upload(request):
                                     prospect.phone_number = normalized_phone
                                 prospect.save()
                                 prospect.origins.add(origin)
+                                # Verificar si se debe ejecutar la tarea de Celery
+                                if should_trigger_celery_task(prospect):
+                                    process_prospect.delay(prospect.id)
                                 results['updated'] += 1
                             except Prospect.DoesNotExist:
                                 # Prospecto no existe: crear nuevo
@@ -396,6 +405,9 @@ def prospect_bulk_upload(request):
                                     created_by=request.user
                                 )
                                 prospect.origins.add(origin)
+                                # Verificar si se debe ejecutar la tarea de Celery
+                                if should_trigger_celery_task(prospect):
+                                    process_prospect.delay(prospect.id)
                                 results['created'] += 1
                                 
                         except Exception as e:
