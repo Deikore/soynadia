@@ -730,6 +730,111 @@ curl -X DELETE http://tu-dominio.com/api/prospects/1/ \
 }
 ```
 
+## 📱 Webhook WhatsApp Opt-in desde Twilio
+
+### Configuración del Webhook
+
+El sistema incluye un endpoint webhook para recibir opt-ins de WhatsApp desde Twilio.
+
+#### 1. Configurar Variables de Entorno
+
+Agrega tu Auth Token de Twilio al archivo `.env`:
+
+```env
+TWILIO_AUTH_TOKEN=your-twilio-auth-token-here
+```
+
+**Obtener el Auth Token:**
+1. Accede a [Twilio Console](https://console.twilio.com/)
+2. Ve a "Settings" → "General"
+3. Copia el "Auth Token"
+
+#### 2. Configurar Webhook en Twilio Console
+
+**Para WhatsApp Sandbox (Desarrollo/Pruebas):**
+
+1. Accede a [Twilio Console](https://console.twilio.com/)
+2. Ve a **Messaging** → **Try it out** → **Send a WhatsApp message**
+3. En la sección **"Sandbox configuration"**, haz clic en **"Configure"**
+4. En **"When a message comes in"**, configura:
+   - **URL**: `https://tu-dominio.com/webhooks/twilio/whatsapp/`
+   - **HTTP Method**: `POST`
+5. Guarda los cambios
+
+**Para WhatsApp Business API (Producción):**
+
+1. Accede a [Twilio Console](https://console.twilio.com/)
+2. Ve a **Messaging** → **Settings** → **WhatsApp Senders**
+3. Selecciona tu número de WhatsApp Business
+4. En **"Webhook URL"**, configura:
+   - **URL**: `https://tu-dominio.com/webhooks/twilio/whatsapp/`
+   - **HTTP Method**: `POST`
+5. Guarda los cambios
+
+#### 3. Endpoint del Webhook
+
+El webhook está disponible en:
+```
+POST https://tu-dominio.com/webhooks/twilio/whatsapp/
+```
+
+**Características:**
+- Validación de firma de Twilio (requiere `TWILIO_AUTH_TOKEN`)
+- Almacenamiento automático de opt-ins
+- Detección automática de tipo de evento (opt-in, opt-out, mensaje)
+- Vinculación automática con Prospect si el número coincide
+- Respuesta TwiML válida para Twilio
+
+#### 4. Tipos de Eventos Detectados
+
+El sistema detecta automáticamente el tipo de evento basado en el contenido del mensaje:
+
+**Opt-in:** Mensajes que contengan: `START`, `SI`, `YES`, `UNIRSE`, `ACTIVAR`, `SUBSCRIBIR`, `SUBSCRIBE`
+
+**Opt-out:** Mensajes que contengan: `STOP`, `NO`, `CANCELAR`, `DESACTIVAR`, `UNSUBSCRIBE`, `SALIR`
+
+**Mensaje:** Cualquier otro contenido
+
+#### 5. Ver Opt-ins Recibidos
+
+Los opt-ins se pueden ver y gestionar desde:
+- **Django Admin**: `/admin/voters/whatsappoptin/`
+- Los registros incluyen:
+  - Número de teléfono del remitente
+  - Tipo de evento
+  - Estado (activo/inactivo)
+  - Prospecto relacionado (si el número coincide)
+  - Datos completos recibidos de Twilio
+
+#### 6. Seguridad
+
+- El webhook valida la firma de Twilio usando `RequestValidator`
+- Si `TWILIO_AUTH_TOKEN` no está configurado, el webhook funciona pero sin validación de firma (no recomendado para producción)
+- El endpoint es público pero protegido por validación de firma
+
+#### 7. Ejemplo de Uso
+
+Cuando un usuario envía un mensaje de WhatsApp a tu número de Twilio:
+
+1. Twilio envía una petición POST al webhook
+2. El sistema valida la firma
+3. Determina el tipo de evento
+4. Busca un Prospect con el número coincidente
+5. Crea o actualiza el registro de `WhatsAppOptIn`
+6. Retorna respuesta TwiML válida
+
+**Mensaje de ejemplo para opt-in:**
+```
+Usuario envía: "START"
+Sistema detecta: event_type = 'opt-in', is_active = True
+```
+
+**Mensaje de ejemplo para opt-out:**
+```
+Usuario envía: "STOP"
+Sistema detecta: event_type = 'opt-out', is_active = False
+```
+
 ## 🛠️ Comandos Útiles
 
 ### Docker Compose

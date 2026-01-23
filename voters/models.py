@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 import secrets
+import json
 
 
 class OriginProspect(models.Model):
@@ -127,3 +128,115 @@ class ApiKey(models.Model):
     def generate_key():
         """Genera una API key segura de 64 caracteres."""
         return secrets.token_urlsafe(48)[:64]
+
+
+class WhatsAppOptIn(models.Model):
+    """
+    Modelo para almacenar opt-ins de WhatsApp recibidos desde Twilio.
+    """
+    EVENT_TYPE_CHOICES = [
+        ('opt-in', 'Opt-in'),
+        ('opt-out', 'Opt-out'),
+        ('message', 'Mensaje'),
+        ('status', 'Estado'),
+    ]
+    
+    message_sid = models.CharField(
+        _('Message SID'),
+        max_length=34,
+        unique=True,
+        db_index=True,
+        help_text=_('Identificador único del mensaje de Twilio')
+    )
+    account_sid = models.CharField(
+        _('Account SID'),
+        max_length=34,
+        help_text=_('Identificador de la cuenta de Twilio')
+    )
+    messaging_service_sid = models.CharField(
+        _('Messaging Service SID'),
+        max_length=34,
+        blank=True,
+        null=True,
+        help_text=_('Identificador del servicio de mensajería')
+    )
+    from_number = models.CharField(
+        _('número remitente'),
+        max_length=20,
+        db_index=True,
+        help_text=_('Número de WhatsApp del remitente')
+    )
+    to_number = models.CharField(
+        _('número receptor'),
+        max_length=20,
+        help_text=_('Número receptor')
+    )
+    body = models.TextField(
+        _('contenido del mensaje'),
+        blank=True,
+        help_text=_('Contenido del mensaje recibido')
+    )
+    profile_name = models.CharField(
+        _('nombre del perfil'),
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_('Nombre del perfil de WhatsApp')
+    )
+    wa_id = models.CharField(
+        _('WhatsApp ID'),
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text=_('Identificador de WhatsApp del contacto')
+    )
+    event_type = models.CharField(
+        _('tipo de evento'),
+        max_length=20,
+        choices=EVENT_TYPE_CHOICES,
+        default='message',
+        help_text=_('Tipo de evento recibido')
+    )
+    is_active = models.BooleanField(
+        _('activo'),
+        default=True,
+        help_text=_('Si el opt-in está activo')
+    )
+    prospect = models.ForeignKey(
+        Prospect,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='whatsapp_opt_ins',
+        verbose_name=_('prospecto'),
+        help_text=_('Prospecto relacionado si el número coincide')
+    )
+    received_at = models.DateTimeField(
+        _('fecha de recepción'),
+        auto_now_add=True,
+        db_index=True
+    )
+    raw_data = models.JSONField(
+        _('datos completos'),
+        null=True,
+        blank=True,
+        help_text=_('Datos completos recibidos de Twilio para referencia')
+    )
+    processed = models.BooleanField(
+        _('procesado'),
+        default=False,
+        help_text=_('Si el opt-in ha sido procesado')
+    )
+
+    class Meta:
+        verbose_name = _('WhatsApp Opt-in')
+        verbose_name_plural = _('WhatsApp Opt-ins')
+        ordering = ['-received_at']
+        indexes = [
+            models.Index(fields=['message_sid']),
+            models.Index(fields=['from_number']),
+            models.Index(fields=['received_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.from_number} - {self.event_type} - {self.received_at.strftime("%Y-%m-%d %H:%M")}'

@@ -12,3 +12,4 @@ requests==2.31.0
 beautifulsoup4==4.12.2
 2captcha-python==2.0.2
 python-dotenv==1.0.0
+twilio==9.0.0
