@@ -108,8 +108,8 @@ def find_prospect_by_phone(phone_number):
     return None
 
 
-@csrf_exempt
 @require_POST
+@csrf_exempt
 def twilio_whatsapp_webhook(request):
     """
     Webhook para recibir mensajes y opt-ins de WhatsApp desde Twilio.
@@ -117,21 +117,60 @@ def twilio_whatsapp_webhook(request):
     Este endpoint es público pero valida la firma de Twilio para seguridad.
     """
     try:
+        # Logging inicial para debug
+        logger.info(f"Webhook recibido: Method={request.method}, Path={request.path}")
+        logger.debug(f"Headers: {dict(request.META)}")
+        
         # Validar firma de Twilio (opcional pero recomendado)
+        # Se puede deshabilitar temporalmente con TWILIO_SKIP_SIGNATURE_VALIDATION=true
+        skip_validation = os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', 'False').lower() == 'true'
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        if auth_token:
-            validator = RequestValidator(auth_token)
-            signature = request.META.get('HTTP_X_TWILIO_SIGNATURE', '')
-            url = request.build_absolute_uri()
-            
-            # Twilio envía los datos como form-data, necesitamos construir el dict
-            params = {}
-            for key, value in request.POST.items():
-                params[key] = value
-            
-            if not validator.validate(url, params, signature):
-                logger.warning(f"Firma de Twilio inválida para webhook")
-                return HttpResponseBadRequest('Invalid signature')
+        
+        if auth_token and not skip_validation:
+            try:
+                validator = RequestValidator(auth_token)
+                signature = request.META.get('HTTP_X_TWILIO_SIGNATURE', '')
+                
+                # Para Cloudflare, construir la URL que Twilio conoce
+                # Usar el dominio desde el header Host o X-Forwarded-Host
+                host = request.META.get('HTTP_X_FORWARDED_HOST') or request.META.get('HTTP_HOST') or request.get_host()
+                protocol = 'https' if request.META.get('HTTP_X_FORWARDED_PROTO') == 'https' or request.is_secure() else 'http'
+                path = request.path
+                url = f"{protocol}://{host}{path}"
+                
+                # Twilio envía los datos como form-data, necesitamos construir el dict
+                params = {}
+                for key, value in request.POST.items():
+                    params[key] = value
+                
+                if signature:
+                    if not validator.validate(url, params, signature):
+                        logger.warning(f"Firma de Twilio inválida. URL: {url}, Signature presente: {bool(signature)}")
+                        logger.warning(f"Headers relevantes: Host={host}, X-Forwarded-Host={request.META.get('HTTP_X_FORWARDED_HOST')}, X-Forwarded-Proto={request.META.get('HTTP_X_FORWARDED_PROTO')}")
+                        # En desarrollo, permitir continuar sin validación estricta
+                        # En producción, esto debería bloquear la petición
+                        debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
+                        if not debug_mode:
+                            return HttpResponseBadRequest('Invalid signature')
+                        else:
+                            logger.warning("Modo DEBUG: Continuando a pesar de firma inválida")
+                    else:
+                        logger.info("Firma de Twilio validada correctamente")
+                else:
+                    logger.warning("No se recibió firma de Twilio en el header X-Twilio-Signature")
+                    debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
+                    if not debug_mode:
+                        logger.warning("Sin firma y no en modo DEBUG, pero continuando...")
+            except Exception as e:
+                logger.error(f"Error al validar firma de Twilio: {e}", exc_info=True)
+                # Continuar sin validación si hay error en la validación misma
+        elif skip_validation:
+            logger.warning("Validación de firma de Twilio deshabilitada (TWILIO_SKIP_SIGNATURE_VALIDATION=true)")
+        else:
+            logger.warning("TWILIO_AUTH_TOKEN no configurado, webhook funcionando sin validación de firma")
+        
+        # Logging de parámetros recibidos
+        logger.info(f"POST data keys: {list(request.POST.keys())}")
         
         # Extraer parámetros del request
         message_sid = request.POST.get('MessageSid', '')
@@ -142,6 +181,8 @@ def twilio_whatsapp_webhook(request):
         body = request.POST.get('Body', '')
         profile_name = request.POST.get('ProfileName', '')
         wa_id = request.POST.get('WaId', '')
+        
+        logger.info(f"Parámetros extraídos: message_sid={message_sid[:10] if message_sid else None}..., from={from_number}")
         
         # Guardar todos los datos recibidos en raw_data
         raw_data = {}

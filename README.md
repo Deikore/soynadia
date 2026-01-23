@@ -811,6 +811,119 @@ Los opt-ins se pueden ver y gestionar desde:
 - El webhook valida la firma de Twilio usando `RequestValidator`
 - Si `TWILIO_AUTH_TOKEN` no está configurado, el webhook funciona pero sin validación de firma (no recomendado para producción)
 - El endpoint es público pero protegido por validación de firma
+- Para debugging temporal, puedes deshabilitar la validación con `TWILIO_SKIP_SIGNATURE_VALIDATION=true` (NO recomendado para producción)
+
+#### 6.1. Troubleshooting Error 403
+
+Si recibes un error 403 al configurar el webhook:
+
+**1. Verificar que el endpoint sea accesible:**
+```bash
+curl -X POST https://tu-dominio.com/webhooks/twilio/whatsapp/ \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "MessageSid=test&AccountSid=test&From=test"
+```
+
+**2. Verificar logs de Django:**
+```bash
+docker compose logs -f web | grep -i webhook
+```
+
+**3. Si usas Cloudflare Tunnel:**
+- Asegúrate de que el dominio esté en `ALLOWED_HOSTS` en `.env`
+- Verifica que `CSRF_TRUSTED_ORIGINS` incluya tu dominio con `https://`
+- El webhook usa `@csrf_exempt` pero puede haber otros middlewares bloqueando
+
+**4. Validación de firma:**
+- Si la validación de firma falla, verifica que `TWILIO_AUTH_TOKEN` sea correcto
+- En desarrollo, puedes temporalmente deshabilitar la validación:
+  ```env
+  TWILIO_SKIP_SIGNATURE_VALIDATION=true
+  ```
+- Verifica los logs para ver si la firma está siendo validada correctamente
+
+**5. Verificar configuración en Twilio:**
+- Asegúrate de que la URL del webhook en Twilio sea exactamente: `https://tu-dominio.com/webhooks/twilio/whatsapp/`
+- Verifica que el método HTTP sea `POST`
+- La URL debe ser accesible públicamente (no localhost)
+
+**6. Si usas Cloudflare Tunnel y recibes 403 (página "Attention Required!"):**
+
+El error "Attention Required! | Cloudflare" significa que Cloudflare está bloqueando la petición antes de llegar a Django. Esto es un problema de configuración de Cloudflare, no de Django.
+
+**Solución: Configurar reglas de Firewall en Cloudflare**
+
+1. **Accede a Cloudflare Dashboard:**
+   - Ve a tu dominio en [Cloudflare Dashboard](https://dash.cloudflare.com/)
+   - Navega a **Security** → **WAF** → **Custom Rules**
+
+2. **Crear una regla para permitir el webhook de Twilio:**
+   
+   **Opción A: Permitir por User-Agent (Recomendado)**
+   - Crea una nueva regla con esta configuración:
+     - **Rule name**: `Allow Twilio Webhook`
+     - **When incoming requests match**: 
+       ```
+       (http.request.uri.path eq "/webhooks/twilio/whatsapp/")
+       and
+       (http.user_agent contains "TwilioProxy")
+       ```
+     - **Then**: `Skip` → Selecciona todos los security checks
+     - **Action**: `Skip` (Bypass)
+
+   **Opción B: Permitir por IPs de Twilio (Más seguro)**
+   - Twilio usa estas IPs (pueden cambiar, consulta [Twilio IPs](https://www.twilio.com/docs/ips)):
+     ```
+     54.172.60.0/22
+     54.244.51.0/24
+     54.171.127.192/26
+     ```
+   - Crea una regla:
+     - **Rule name**: `Allow Twilio IPs`
+     - **When incoming requests match**:
+       ```
+       (ip.src in {54.172.60.0/22 54.244.51.0/24 54.171.127.192/26})
+       and
+       (http.request.uri.path eq "/webhooks/twilio/whatsapp/")
+       ```
+     - **Then**: `Skip` → Selecciona todos los security checks
+
+3. **Deshabilitar Bot Protection para el endpoint (Alternativa):**
+   - Ve a **Security** → **Bots**
+   - Crea una regla de excepción:
+     - **Rule name**: `Bypass Bot Check for Twilio Webhook`
+     - **Path**: `/webhooks/twilio/whatsapp/`
+     - **Action**: `Allow`
+
+4. **Ajustar Security Level temporalmente (Solo para debugging):**
+   - Ve a **Security** → **Settings**
+   - Cambia **Security Level** a **Medium** o **Low** temporalmente
+   - **Nota**: Esto reduce la seguridad general, úsalo solo para verificar que el problema es Cloudflare
+
+5. **Verificar configuración de Django:**
+   - Asegúrate de que el dominio esté en `ALLOWED_HOSTS`:
+     ```env
+     ALLOWED_HOSTS=tu-dominio.cloudflare.com,tu-dominio.com
+     ```
+   - Verifica `CSRF_TRUSTED_ORIGINS`:
+     ```env
+     CSRF_TRUSTED_ORIGINS=https://tu-dominio.cloudflare.com,https://tu-dominio.com
+     ```
+
+6. **Probar después de configurar:**
+   ```bash
+   curl -X POST https://tu-dominio.com/webhooks/twilio/whatsapp/ \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -H "User-Agent: TwilioProxy/1.1" \
+     -d "MessageSid=test&AccountSid=test&From=test"
+   ```
+
+7. **Revisar logs de Cloudflare:**
+   - Ve a **Analytics & Logs** → **Security Events**
+   - Busca eventos relacionados con `/webhooks/twilio/whatsapp/`
+   - Esto te ayudará a identificar qué regla está bloqueando
+
+**Nota importante:** La página "Attention Required!" es la página de desafío de Cloudflare. Si ves esta página, significa que Cloudflare está bloqueando la petición antes de que llegue a tu servidor Django.
 
 #### 7. Ejemplo de Uso
 
