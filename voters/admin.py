@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import Prospect, ApiKey, OriginProspect
-from .utils import should_trigger_celery_task
+from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult
 from .tasks import process_prospect
 
 
@@ -102,7 +102,13 @@ class ProspectAdmin(admin.ModelAdmin):
             if should_trigger_celery_task(obj):
                 process_prospect.delay(obj.id)
         else:
+            # Es una actualización: guardar el identification_number anterior
+            old_id = obj.identification_number
             super().save_model(request, obj, form, change)
+            # Verificar si cambió el identification_number y disparar tarea si es necesario
+            if not check_and_trigger_on_id_change(obj, old_id):
+                # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
+                trigger_polling_station_consult(obj)
     
     def has_change_permission(self, request, obj=None):
         """

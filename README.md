@@ -89,6 +89,11 @@ SECURE_SSL_REDIRECT=False
 # CSRF Trusted Origins (requerido para Cloudflare Tunnel)
 # Formato: https://tu-dominio.com,https://otro-dominio.com
 CSRF_TRUSTED_ORIGINS=https://tu-dominio.com
+
+# 2Captcha API Key (requerido para consultas de lugar de votación)
+# Obtén tu API key en: https://2captcha.com/
+# Esta clave se usa para resolver reCAPTCHA al consultar lugares de votación
+TWOCAPTCHA_API_KEY=tu-api-key-de-2captcha-aqui
 ```
 
 ### 3. Construir y ejecutar con Docker Compose
@@ -192,6 +197,11 @@ CSRF_COOKIE_SECURE=True
 # CSRF Trusted Origins (CRÍTICO para Cloudflare Tunnel)
 # Usa tu dominio de Cloudflare con https://
 CSRF_TRUSTED_ORIGINS=https://soynadia.tu-dominio.com
+
+# 2Captcha API Key (requerido para consultas de lugar de votación)
+# Obtén tu API key en: https://2captcha.com/
+# Esta clave se usa para resolver reCAPTCHA al consultar lugares de votación
+TWOCAPTCHA_API_KEY=tu-api-key-de-2captcha-aqui
 ```
 
 **Generar SECRET_KEY**:

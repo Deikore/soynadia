@@ -63,6 +63,7 @@ services:
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TWOCAPTCHA_API_KEY=${TWOCAPTCHA_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -88,6 +89,7 @@ services:
       - DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TWOCAPTCHA_API_KEY=${TWOCAPTCHA_API_KEY:-}
     entrypoint: /bin/bash -c "while ! nc -z $$DB_HOST $$DB_PORT; do sleep 0.5; done && python manage.py migrate --noinput && celery -A soynadia worker -l info"
     depends_on:
       db:

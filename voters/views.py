@@ -12,7 +12,7 @@ import re
 import io
 from .models import Prospect, OriginProspect
 from .forms import ProspectForm, ProspectSearchForm, BulkUploadForm
-from .utils import should_trigger_celery_task
+from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult
 from .tasks import process_prospect
 
 
@@ -183,7 +183,16 @@ def prospect_update(request, pk):
     if request.method == 'POST':
         form = ProspectForm(request.POST, instance=prospect)
         if form.is_valid():
-            form.save()
+            # Obtener el identification_number anterior desde la base de datos antes de actualizar
+            # Esto asegura que tenemos el valor real guardado, no el del formulario
+            old_prospect = Prospect.objects.get(pk=pk)
+            old_id = old_prospect.identification_number
+            # Guardar el formulario y obtener la instancia actualizada
+            prospect = form.save()
+            # Verificar si cambió el identification_number y disparar tarea si es necesario
+            if not check_and_trigger_on_id_change(prospect, old_id):
+                # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
+                trigger_polling_station_consult(prospect)
             messages.success(request, _('Prospecto actualizado exitosamente.'))
             return redirect('voters:prospect_detail', pk=pk)
     else:
@@ -384,16 +393,21 @@ def prospect_bulk_upload(request):
                             # Buscar si el prospecto ya existe
                             try:
                                 prospect = Prospect.objects.get(identification_number=identification_number)
-                                # Prospecto existe: actualizar campos y agregar origin
+                                # Prospecto existe: guardar identification_number anterior
+                                # Nota: En bulk upload, el identification_number no cambia porque se busca por ese campo,
+                                # pero guardamos old_id para verificar por si en el futuro se permite cambiar
+                                old_id = prospect.identification_number
+                                # Actualizar campos y agregar origin
                                 prospect.first_name = first_name
                                 prospect.last_name = last_name
                                 if normalized_phone is not None:
                                     prospect.phone_number = normalized_phone
                                 prospect.save()
                                 prospect.origins.add(origin)
-                                # Verificar si se debe ejecutar la tarea de Celery
-                                if should_trigger_celery_task(prospect):
-                                    process_prospect.delay(prospect.id)
+                                # Verificar si cambió el identification_number y disparar tarea si es necesario
+                                if not check_and_trigger_on_id_change(prospect, old_id):
+                                    # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
+                                    trigger_polling_station_consult(prospect)
                                 results['updated'] += 1
                             except Prospect.DoesNotExist:
                                 # Prospecto no existe: crear nuevo
