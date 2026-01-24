@@ -738,16 +738,20 @@ El sistema incluye un endpoint webhook para recibir opt-ins de WhatsApp desde Tw
 
 #### 1. Configurar Variables de Entorno
 
-Agrega tu Auth Token de Twilio al archivo `.env`:
+Agrega estas variables al archivo `.env`:
 
 ```env
 TWILIO_AUTH_TOKEN=your-twilio-auth-token-here
+# Obligatoria cuando usas Cloudflare Tunnel (o proxy que no envíe X-Forwarded-Proto correctamente)
+TWILIO_WEBHOOK_URL=https://tu-dominio.com/webhooks/twilio/whatsapp/
 ```
 
 **Obtener el Auth Token:**
 1. Accede a [Twilio Console](https://console.twilio.com/)
 2. Ve a "Settings" → "General"
 3. Copia el "Auth Token"
+
+**TWILIO_WEBHOOK_URL:** Debe ser la URL **exacta** del webhook tal como está en Twilio Console (mismo protocolo, dominio, path y trailing slash). Si usas Cloudflare Tunnel, la validación de firma falla si construyes la URL desde los headers (Nginx recibe HTTP del tunnel); en ese caso **debes** definir `TWILIO_WEBHOOK_URL` en `.env`.
 
 #### 2. Configurar Webhook en Twilio Console
 
@@ -810,6 +814,7 @@ Los opt-ins se pueden ver y gestionar desde:
 
 - El webhook valida la firma de Twilio usando `RequestValidator`
 - Si `TWILIO_AUTH_TOKEN` no está configurado, el webhook funciona pero sin validación de firma (no recomendado para producción)
+- Si `TWILIO_WEBHOOK_URL` está definida, se usa tal cual para validar la firma; si no, se construye desde la petición (Host, X-Forwarded-*, path). Con Cloudflare Tunnel, **define `TWILIO_WEBHOOK_URL`** para que la URL coincida con Twilio.
 - El endpoint es público pero protegido por validación de firma
 - Para debugging temporal, puedes deshabilitar la validación con `TWILIO_SKIP_SIGNATURE_VALIDATION=true` (NO recomendado para producción)
 
@@ -824,9 +829,9 @@ curl -X POST https://tu-dominio.com/webhooks/twilio/whatsapp/ \
   -d "MessageSid=test&AccountSid=test&From=test"
 ```
 
-**2. Verificar logs de Django:**
+**2. Verificar logs de Django (Gunicorn):**
 ```bash
-docker compose logs -f web | grep -i webhook
+docker compose exec web tail -f /var/log/supervisor/gunicorn.log | grep -E '\[Twilio\]|webhook'
 ```
 
 **3. Si usas Cloudflare Tunnel:**
@@ -836,11 +841,12 @@ docker compose logs -f web | grep -i webhook
 
 **4. Validación de firma:**
 - Si la validación de firma falla, verifica que `TWILIO_AUTH_TOKEN` sea correcto
+- **Con Cloudflare Tunnel:** define `TWILIO_WEBHOOK_URL` en `.env` con la URL exacta de Twilio (ej. `https://app.deikore.com/webhooks/twilio/whatsapp/`). Sin ella, la URL se construye como `http://...` y la validación falla.
 - En desarrollo, puedes temporalmente deshabilitar la validación:
   ```env
   TWILIO_SKIP_SIGNATURE_VALIDATION=true
   ```
-- Verifica los logs para ver si la firma está siendo validada correctamente
+- Verifica los logs (`docker compose exec web tail -f /var/log/supervisor/gunicorn.log`) para ver la URL usada, "Firma INVÁLIDA", etc.
 
 **5. Verificar configuración en Twilio:**
 - Asegúrate de que la URL del webhook en Twilio sea exactamente: `https://tu-dominio.com/webhooks/twilio/whatsapp/`

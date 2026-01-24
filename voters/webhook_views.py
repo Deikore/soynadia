@@ -117,51 +117,63 @@ def twilio_whatsapp_webhook(request):
     Este endpoint es público pero valida la firma de Twilio para seguridad.
     """
     try:
-        # Logging inicial para debug
-        logger.info(f"Webhook recibido: Method={request.method}, Path={request.path}")
-        logger.info(f"Headers: {dict(request.META)}")
-        
-        # Validar firma de Twilio (opcional pero recomendado)
-        # Se puede deshabilitar temporalmente con TWILIO_SKIP_SIGNATURE_VALIDATION=true
+        # Logging inicial: solo headers relevantes para Twilio (evitar volcar todo META)
+        meta = request.META
+        headers_debug = {
+            'HTTP_HOST': meta.get('HTTP_HOST'),
+            'HTTP_X_FORWARDED_HOST': meta.get('HTTP_X_FORWARDED_HOST'),
+            'HTTP_X_FORWARDED_PROTO': meta.get('HTTP_X_FORWARDED_PROTO'),
+            'HTTP_X_FORWARDED_FOR': meta.get('HTTP_X_FORWARDED_FOR'),
+            'HTTP_X_TWILIO_SIGNATURE': 'presente' if meta.get('HTTP_X_TWILIO_SIGNATURE') else 'ausente',
+        }
+        logger.info(
+            "[Twilio] Webhook recibido: Method=%s, Path=%s, headers=%s",
+            request.method,
+            request.path,
+            headers_debug,
+        )
+
         skip_validation = os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', 'False').lower() == 'true'
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        print(
-            "[Twilio] Validación firma: TWILIO_AUTH_TOKEN=%s, TWILIO_SKIP_SIGNATURE_VALIDATION=%s, skip_validation=%s",
+        webhook_url = (os.getenv('TWILIO_WEBHOOK_URL') or '').strip() or None
+        logger.info(
+            "[Twilio] Validación firma: TWILIO_AUTH_TOKEN=%s, TWILIO_SKIP_SIGNATURE_VALIDATION=%s, skip_validation=%s, TWILIO_WEBHOOK_URL=%s",
             "presente" if auth_token else "ausente",
             os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', ''),
             skip_validation,
+            "presente" if webhook_url else "ausente",
         )
-        
+
         if auth_token and not skip_validation:
             try:
                 validator = RequestValidator(auth_token)
                 signature = request.META.get('HTTP_X_TWILIO_SIGNATURE', '')
-                logger.info(f"Signature: {signature}")
                 logger.info(
                     "[Twilio] Firma recibida: header X-Twilio-Signature=%s, len=%d",
                     "presente" if signature else "ausente",
                     len(signature) if signature else 0,
                 )
-                
-                # Para Cloudflare, construir la URL que Twilio conoce
-                host = request.META.get('HTTP_X_FORWARDED_HOST') or request.META.get('HTTP_HOST') or request.get_host()
-                protocol = 'https' if request.META.get('HTTP_X_FORWARDED_PROTO') == 'https' or request.is_secure() else 'http'
-                path = request.path
-                url = f"{protocol}://{host}{path}"
-                logger.info(
-                    "[Twilio] URL usada para validación: %s (Host=%s, X-Forwarded-Host=%s, X-Forwarded-Proto=%s, path=%s)",
-                    url,
-                    request.META.get('HTTP_HOST'),
-                    request.META.get('HTTP_X_FORWARDED_HOST'),
-                    request.META.get('HTTP_X_FORWARDED_PROTO'),
-                    path,
-                )
-                
-                params = {}
-                for key, value in request.POST.items():
-                    params[key] = value
+
+                if webhook_url:
+                    url = webhook_url
+                    logger.info("[Twilio] URL usada para validación (TWILIO_WEBHOOK_URL): %s", url)
+                else:
+                    host = meta.get('HTTP_X_FORWARDED_HOST') or meta.get('HTTP_HOST') or request.get_host()
+                    protocol = 'https' if meta.get('HTTP_X_FORWARDED_PROTO') == 'https' or request.is_secure() else 'http'
+                    path = request.path
+                    url = f"{protocol}://{host}{path}"
+                    logger.info(
+                        "[Twilio] URL usada para validación (desde request): %s (Host=%s, X-Forwarded-Host=%s, X-Forwarded-Proto=%s, path=%s)",
+                        url,
+                        meta.get('HTTP_HOST'),
+                        meta.get('HTTP_X_FORWARDED_HOST'),
+                        meta.get('HTTP_X_FORWARDED_PROTO'),
+                        path,
+                    )
+
+                params = {k: v for k, v in request.POST.items()}
                 logger.info("[Twilio] Params para validación: keys=%s, count=%d", list(params.keys()), len(params))
-                
+
                 if not signature:
                     logger.warning("[Twilio] Validación omitida: no hay X-Twilio-Signature, continuando sin validar")
                 else:
