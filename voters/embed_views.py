@@ -2,6 +2,7 @@
 Vistas públicas para formularios embebibles (ej. GoDaddy).
 """
 import os
+import unicodedata
 from urllib.parse import quote
 
 from django import forms
@@ -162,7 +163,9 @@ def embed_prospect_form(request):
     wa_number = (os.getenv('EMBED_WHATSAPP_NUMBER') or '').strip()
     wa_message = (os.getenv('EMBED_WHATSAPP_MESSAGE') or '').strip()
     if wa_number and wa_message:
-        wa_url = f"https://wa.me/{wa_number}?text={quote(wa_message)}"
+        normalized = unicodedata.normalize('NFC', wa_message)
+        encoded = quote(normalized, safe='', encoding='utf-8')
+        wa_url = f"https://wa.me/{wa_number}?text={encoded}"
         return render(
             request,
             'voters/embed_redirect_whatsapp.html',
