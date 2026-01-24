@@ -56,7 +56,7 @@ class EmbedProspectForm(forms.Form):
         required=True,
         label=_('Teléfono'),
         widget=forms.TextInput(attrs={
-            'placeholder': 'Ej: +57 313 416 5999 o 3134165999',
+            'placeholder': 'Ej: +57 313 400 0000 o 3134000000',
             'required': True,
             'autocomplete': 'tel',
         }),

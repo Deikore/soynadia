@@ -25,7 +25,7 @@ def validate_and_normalize_phone(phone):
 
     if not normalized.isdigit() or len(normalized) != 10:
         raise ValidationError(
-            _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 416 5999, 3134165999')
+            _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 400 0000, 3134000000')
         )
 
     first_digit = normalized[0]

@@ -27,7 +27,7 @@ class ProspectForm(forms.ModelForm):
             }),
             'phone_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'placeholder': 'Ej: +57 313 416 5999 o 3134165999'
+                'placeholder': 'Ej: +57 313 400 0000 o 3134000000'
             }),
         }
         labels = {
@@ -58,7 +58,7 @@ class ProspectForm(forms.ModelForm):
         # Validar que sean solo números y longitud correcta
         if not normalized.isdigit() or len(normalized) != 10:
             raise ValidationError(
-                _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 416 5999, 3134165999')
+                _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 400 0000, 3134000000')
             )
         
         # Validar que sea un número colombiano válido
@@ -79,7 +79,7 @@ class ProspectForm(forms.ModelForm):
                 _('Número inválido para Colombia. Debe ser un celular (3XX) o fijo (1-8XX).')
             )
         
-        return normalized  # Retornar solo números: 3134165999
+        return normalized  # Retornar solo números: 3134155999
 
 
 class ProspectSearchForm(forms.Form):

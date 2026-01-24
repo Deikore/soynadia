@@ -425,7 +425,7 @@ def download_csv_template(request):
     """
     # Crear contenido CSV de ejemplo
     csv_content = 'identification_number;first_name;last_name;phone_number;origin\n'
-    csv_content += '1234567890;Juan;Pérez;3134165999;campaña_2024\n'
+    csv_content += '1234567890;Juan;Pérez;3134000000;campaña_2024\n'
     csv_content += '9876543210;María;García;3201234567;redes_sociales\n'
     csv_content += '5555555555;Carlos;Rodríguez;;evento_publico\n'
     

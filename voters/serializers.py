@@ -86,7 +86,7 @@ class ProspectSerializer(serializers.ModelSerializer):
         # Validar que sean solo números y longitud correcta
         if not normalized.isdigit() or len(normalized) != 10:
             raise serializers.ValidationError(
-                'Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 416 5999, 3134165999'
+                'Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 400 0000, 3134000000'
             )
         
         # Validar que sea un número colombiano válido
@@ -107,4 +107,4 @@ class ProspectSerializer(serializers.ModelSerializer):
                 'Número inválido para Colombia. Debe ser un celular (3XX) o fijo (1-8XX).'
             )
         
-        return normalized  # Retornar solo números: 3134165999
+        return normalized  # Retornar solo números: 3134155999
