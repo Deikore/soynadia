@@ -1,8 +1,11 @@
 """
 Vistas públicas para formularios embebibles (ej. GoDaddy).
 """
+import os
+from urllib.parse import quote
+
 from django import forms
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -155,6 +158,12 @@ def embed_prospect_form(request):
 
     if should_trigger_celery_task(prospect):
         process_prospect.delay(prospect.id)
+
+    wa_number = (os.getenv('EMBED_WHATSAPP_NUMBER') or '').strip()
+    wa_message = (os.getenv('EMBED_WHATSAPP_MESSAGE') or '').strip()
+    if wa_number and wa_message:
+        url = f"https://wa.me/{wa_number}?text={quote(wa_message)}"
+        return redirect(url)
 
     return render(
         request,
