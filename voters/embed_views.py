@@ -3,6 +3,7 @@ Vistas públicas para formularios embebibles (ej. GoDaddy).
 """
 from django import forms
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.translation import gettext_lazy as _
@@ -108,6 +109,7 @@ class EmbedProspectForm(forms.Form):
         return value
 
 
+@csrf_exempt
 @xframe_options_exempt
 @require_http_methods(['GET', 'POST'])
 def embed_prospect_form(request):
