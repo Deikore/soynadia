@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        input:invalid { box-shadow: none; }
+    </style>
+</head>
+<body class="bg-white min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        {% if success %}
+        <div class="bg-white rounded-lg shadow-md p-8 text-center">
+            <p class="text-lg text-gray-800 font-medium">Gracias, te hemos registrado.</p>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-lg shadow-md p-6 sm:p-8">
+            <form method="post" action="" class="space-y-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                <div class="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                    {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+
+                <div>
+                    <label for="{{ form.identification_number.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.identification_number.label }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="identification_number" id="{{ form.identification_number.id_for_label }}"
+                           value="{{ form.identification_number.value|default:'' }}"
+                           placeholder="{{ form.identification_number.field.widget.attrs.placeholder }}"
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    {% if form.identification_number.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.identification_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.first_name.label }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="first_name" id="{{ form.first_name.id_for_label }}"
+                           value="{{ form.first_name.value|default:'' }}"
+                           placeholder="{{ form.first_name.field.widget.attrs.placeholder }}"
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    {% if form.first_name.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.last_name.label }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="last_name" id="{{ form.last_name.id_for_label }}"
+                           value="{{ form.last_name.value|default:'' }}"
+                           placeholder="{{ form.last_name.field.widget.attrs.placeholder }}"
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    {% if form.last_name.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.phone_number.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.phone_number.label }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="phone_number" id="{{ form.phone_number.id_for_label }}"
+                           value="{{ form.phone_number.value|default:'' }}"
+                           placeholder="{{ form.phone_number.field.widget.attrs.placeholder }}"
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    {% if form.phone_number.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.phone_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-1">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" name="accepted_terms" id="id_accepted_terms" value="1"
+                               {% if form.accepted_terms.value %}checked{% endif %}
+                               class="mt-1 rounded border-gray-300 focus:ring-red-500"
+                               data-embed-check="accepted_terms">
+                        <span class="text-sm text-gray-700">{{ form.accepted_terms.label }} <span class="text-red-500">*</span></span>
+                    </label>
+                    {% if form.accepted_terms.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.accepted_terms.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-1">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" name="authorize_info_sending" id="id_authorize_info_sending" value="1"
+                               {% if form.authorize_info_sending.value %}checked{% endif %}
+                               class="mt-1 rounded border-gray-300 focus:ring-red-500"
+                               data-embed-check="authorize_info_sending">
+                        <span class="text-sm text-gray-700">{{ form.authorize_info_sending.label }} <span class="text-red-500">*</span></span>
+                    </label>
+                    {% if form.authorize_info_sending.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.authorize_info_sending.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <button type="submit" id="embed-submit-btn" disabled
+                        class="w-full mt-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600">
+                    Enviar
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% if not success %}
+    <script>
+        (function () {
+            var terms = document.getElementById('id_accepted_terms');
+            var authorize = document.getElementById('id_authorize_info_sending');
+            var btn = document.getElementById('embed-submit-btn');
+            if (!terms || !authorize || !btn) return;
+            function updateSubmit() {
+                btn.disabled = !(terms.checked && authorize.checked);
+            }
+            terms.addEventListener('change', updateSubmit);
+            authorize.addEventListener('change', updateSubmit);
+            updateSubmit();
+        })();
+    </script>
+    {% endif %}
+</body>
+</html>

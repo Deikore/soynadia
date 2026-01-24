@@ -1,7 +1,46 @@
 """
 Utilidades para la app voters.
 """
+import re
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext_lazy as _
+
 from .models import Prospect
+
+
+def validate_and_normalize_phone(phone):
+    """
+    Valida y normaliza un número de teléfono colombiano.
+    Retorna el número normalizado (10 dígitos) o None si está vacío.
+    Lanza ValidationError si el número es inválido.
+    """
+    if not phone or not phone.strip():
+        return None
+
+    normalized = re.sub(r'[\s\-\(\)]', '', phone.strip())
+    if normalized.startswith('+57'):
+        normalized = normalized[3:]
+    elif normalized.startswith('57') and len(normalized) == 12:
+        normalized = normalized[2:]
+
+    if not normalized.isdigit() or len(normalized) != 10:
+        raise ValidationError(
+            _('Número inválido. Debe tener 10 dígitos. Ejemplos: +57 313 416 5999, 3134165999')
+        )
+
+    first_digit = normalized[0]
+    if first_digit == '3':
+        second_digit = normalized[1]
+        if second_digit not in ['0', '1', '2', '5']:
+            raise ValidationError(
+                _('Número de celular inválido para Colombia. Debe empezar con 300-399, 310-319, 320-329 o 350-359.')
+            )
+    elif first_digit not in ['1', '2', '3', '4', '5', '6', '7', '8']:
+        raise ValidationError(
+            _('Número inválido para Colombia. Debe ser un celular (3XX) o fijo (1-8XX).')
+        )
+
+    return normalized
 
 
 def should_trigger_celery_task(prospect):

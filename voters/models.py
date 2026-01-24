@@ -79,6 +79,25 @@ class Prospect(models.Model):
     notice_date = models.CharField(_('fecha de novedad'), max_length=50, blank=True, null=True)
     polling_station_consulted = models.BooleanField(_('consulta puesto votación'), default=False, blank=True)
 
+    accepted_terms = models.BooleanField(
+        _('aceptación de términos'),
+        default=False,
+        blank=True,
+        help_text=_('Aceptación de términos desde formulario embebido'),
+    )
+    authorize_info_sending = models.BooleanField(
+        _('autorización envío de información'),
+        default=False,
+        blank=True,
+        help_text=_('Autorización de envío de información desde formulario embebido'),
+    )
+    allow_whatsapp = models.BooleanField(
+        _('permite WhatsApp'),
+        default=False,
+        blank=True,
+        help_text=_('Indica que se recibió al menos un mensaje de WhatsApp asociado a este prospecto.'),
+    )
+
     class Meta:
         verbose_name = _('prospecto')
         verbose_name_plural = _('prospectos')
@@ -197,11 +216,6 @@ class WhatsAppOptIn(models.Model):
         default='message',
         help_text=_('Tipo de evento recibido')
     )
-    is_active = models.BooleanField(
-        _('activo'),
-        default=True,
-        help_text=_('Si el opt-in está activo')
-    )
     prospect = models.ForeignKey(
         Prospect,
         on_delete=models.SET_NULL,
@@ -221,11 +235,6 @@ class WhatsAppOptIn(models.Model):
         null=True,
         blank=True,
         help_text=_('Datos completos recibidos de Twilio para referencia')
-    )
-    processed = models.BooleanField(
-        _('procesado'),
-        default=False,
-        help_text=_('Si el opt-in ha sido procesado')
     )
 
     class Meta:

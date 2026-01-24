@@ -784,9 +784,11 @@ POST https://tu-dominio.com/webhooks/twilio/whatsapp/
 
 **Características:**
 - Validación de firma de Twilio (requiere `TWILIO_AUTH_TOKEN`)
-- Almacenamiento automático de opt-ins
+- Almacenamiento automático de opt-ins en `WhatsAppOptIn`
 - Detección automática de tipo de evento (opt-in, opt-out, mensaje)
-- Vinculación automática con Prospect si el número coincide
+- Extracción del número del remitente: se quita el prefijo `whatsapp:` y el **prefijo de país correspondiente** (+57, +1, +52, etc.), ya que no siempre son números colombianos
+- Match por `Prospect.phone_number` y actualización de `Prospect.allow_whatsapp = True` cuando coincide
+- Vinculación automática del opt-in con el Prospect (FK)
 - Respuesta TwiML válida para Twilio
 
 #### 4. Tipos de Eventos Detectados
@@ -806,9 +808,9 @@ Los opt-ins se pueden ver y gestionar desde:
 - Los registros incluyen:
   - Número de teléfono del remitente
   - Tipo de evento
-  - Estado (activo/inactivo)
   - Prospecto relacionado (si el número coincide)
   - Datos completos recibidos de Twilio
+- Si hay match, el Prospect se marca con `allow_whatsapp = True` y se muestra un icono de WhatsApp en la lista de prospectos y en el admin.
 
 #### 6. Seguridad
 
@@ -937,22 +939,54 @@ Cuando un usuario envía un mensaje de WhatsApp a tu número de Twilio:
 
 1. Twilio envía una petición POST al webhook
 2. El sistema valida la firma
-3. Determina el tipo de evento
-4. Busca un Prospect con el número coincidente
-5. Crea o actualiza el registro de `WhatsAppOptIn`
-6. Retorna respuesta TwiML válida
+3. Extrae el número del remitente (`From`): quita `whatsapp:` y el prefijo de país correspondiente (+57, +1, +52, etc.)
+4. Busca un Prospect cuyo `phone_number` coincida con el número normalizado
+5. Si hay match: actualiza `Prospect.allow_whatsapp = True`
+6. Crea o actualiza el registro de `WhatsAppOptIn` (vinculado al Prospect vía FK)
+7. Retorna respuesta TwiML válida
 
 **Mensaje de ejemplo para opt-in:**
 ```
 Usuario envía: "START"
-Sistema detecta: event_type = 'opt-in', is_active = True
+Sistema detecta: event_type = 'opt-in'
 ```
 
 **Mensaje de ejemplo para opt-out:**
 ```
 Usuario envía: "STOP"
-Sistema detecta: event_type = 'opt-out', is_active = False
+Sistema detecta: event_type = 'opt-out'
 ```
+
+## 📄 Formulario embebible (GoDaddy)
+
+Formulario público para registrar prospectos desde una página externa (p. ej. GoDaddy) mediante iframe. Campos obligatorios: **número de identificación**, **nombres**, **apellidos**, **teléfono**.
+
+### URL del formulario
+
+```
+https://<tu-dominio>/embed/prospectos/
+```
+
+Sustituye `<tu-dominio>` por tu dominio (ej. `app.deikore.com`). El dominio debe estar en `ALLOWED_HOSTS` en tu `.env`.
+
+### Cómo embeber en GoDaddy
+
+1. En tu página de GoDaddy, añade un bloque **HTML** o **Código personalizado**.
+2. Pega un iframe como el siguiente (ajusta la URL y el tamaño):
+
+```html
+<iframe
+  src="https://tu-dominio.com/embed/prospectos/"
+  width="100%"
+  height="500"
+  frameborder="0"
+  title="Formulario de registro">
+</iframe>
+```
+
+3. Se recomienda un ancho mínimo de **400px** y una altura de **500px** o más para que el formulario se vea completo.
+
+Los datos enviados se guardan como prospectos con origen **embed** y pueden consultarse en el dashboard y en el admin de SoyNadia.
 
 ## 🛠️ Comandos Útiles
 

@@ -11,6 +11,7 @@ urlpatterns = [
     path('', include('users.urls')),
     path('', include('voters.urls')),
     path('api/', include('voters.api_urls')),
+    path('embed/', include('voters.embed_urls')),
 ]
 
 if settings.DEBUG:

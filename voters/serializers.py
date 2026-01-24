@@ -28,15 +28,16 @@ class ProspectSerializer(serializers.ModelSerializer):
             'resolution',
             'notice_date',
             'polling_station_consulted',
+            'allow_whatsapp',
             'created_at',
             'updated_at',
             'created_by_email',
         ]
         read_only_fields = [
-            'id', 
-            'created_at', 
-            'updated_at', 
-            'created_by_email', 
+            'id',
+            'created_at',
+            'updated_at',
+            'created_by_email',
             'full_name',
             'department',
             'municipality',
@@ -47,6 +48,7 @@ class ProspectSerializer(serializers.ModelSerializer):
             'resolution',
             'notice_date',
             'polling_station_consulted',
+            'allow_whatsapp',
         ]
 
     def validate_identification_number(self, value):

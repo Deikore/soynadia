@@ -41,8 +41,8 @@ class ProspectAdmin(admin.ModelAdmin):
     """
     Admin para el modelo Prospect.
     """
-    list_display = ('identification_number', 'first_name', 'last_name', 'phone_number', 'polling_station_consulted', 'created_at', 'display_created_by')
-    list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted')
+    list_display = ('identification_number', 'first_name', 'last_name', 'phone_number', 'polling_station_consulted', 'allow_whatsapp', 'created_at', 'display_created_by')
+    list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted', 'allow_whatsapp')
     search_fields = ('identification_number', 'first_name', 'last_name', 'phone_number')
     readonly_fields = (
         'created_at', 
@@ -61,7 +61,7 @@ class ProspectAdmin(admin.ModelAdmin):
     filter_horizontal = ('origins',)
     fieldsets = (
         (_('Información del Prospecto'), {
-            'fields': ('identification_number', 'first_name', 'last_name', 'phone_number', 'origins')
+            'fields': ('identification_number', 'first_name', 'last_name', 'phone_number', 'origins', 'allow_whatsapp')
         }),
         (_('Información Electoral'), {
             'fields': (
@@ -176,8 +176,8 @@ class WhatsAppOptInAdmin(admin.ModelAdmin):
     """
     Admin para el modelo WhatsAppOptIn.
     """
-    list_display = ('message_sid', 'from_number', 'event_type', 'is_active', 'received_at', 'prospect', 'processed')
-    list_filter = ('event_type', 'is_active', 'processed', 'received_at')
+    list_display = ('message_sid', 'from_number', 'event_type', 'received_at', 'prospect')
+    list_filter = ('event_type', 'received_at')
     search_fields = ('from_number', 'profile_name', 'message_sid', 'body')
     readonly_fields = (
         'message_sid',
@@ -205,13 +205,7 @@ class WhatsAppOptInAdmin(admin.ModelAdmin):
                 'body',
                 'profile_name',
                 'wa_id',
-            )
-        }),
-        (_('Estado'), {
-            'fields': (
                 'event_type',
-                'is_active',
-                'processed',
             )
         }),
         (_('Relaciones'), {
@@ -222,15 +216,15 @@ class WhatsAppOptInAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     def has_add_permission(self, request):
         """No permitir crear manualmente desde el admin."""
         return False
-    
+
     def has_change_permission(self, request, obj=None):
-        """Solo permitir editar is_active y processed."""
+        """Solo lectura; los registros se crean desde el webhook."""
         return True
-    
+
     def has_delete_permission(self, request, obj=None):
         """Permitir eliminar registros."""
         return True

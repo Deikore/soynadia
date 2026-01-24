@@ -2,8 +2,8 @@
 Vistas para webhooks externos.
 """
 import os
-import re
 import logging
+import phonenumbers
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -14,34 +14,30 @@ from .models import WhatsAppOptIn, Prospect
 logger = logging.getLogger(__name__)
 
 
-def normalize_phone_number(phone):
+def normalize_whatsapp_from_number(from_value):
     """
-    Normaliza un número de teléfono para búsqueda.
-    Elimina espacios, guiones, paréntesis y el prefijo +57 o 57.
-    
+    Extrae el número nacional a partir del remitente Twilio (From).
+    Quita el prefijo 'whatsapp:' y el prefijo de país correspondiente (+57, +1, +52, etc.).
+    No asume siempre Colombia.
+
     Args:
-        phone: Número de teléfono en cualquier formato
-    
+        from_value: Valor de From (ej. whatsapp:+573001234567, whatsapp:+13051234567)
+
     Returns:
-        str: Número normalizado (solo dígitos) o None si está vacío
+        str: Número nacional (solo dígitos) o None si no se puede parsear
     """
-    if not phone:
+    if not from_value or not str(from_value).strip():
         return None
-    
-    # Eliminar espacios, guiones, paréntesis
-    normalized = re.sub(r'[\s\-\(\)]', '', phone.strip())
-    
-    # Eliminar prefijo +57 o 57
-    if normalized.startswith('+57'):
-        normalized = normalized[3:]
-    elif normalized.startswith('57') and len(normalized) > 10:
-        normalized = normalized[2:]
-    
-    # Eliminar el prefijo whatsapp: si existe
-    if normalized.startswith('whatsapp:'):
-        normalized = normalized[9:]
-    
-    return normalized if normalized else None
+    s = str(from_value).strip()
+    if s.lower().startswith('whatsapp:'):
+        s = s[9:].strip()
+    if not s:
+        return None
+    try:
+        parsed = phonenumbers.parse(s, None)
+        return str(parsed.national_number)
+    except phonenumbers.NumberParseException:
+        return None
 
 
 def determine_event_type(body):
@@ -72,37 +68,31 @@ def determine_event_type(body):
     return 'message'
 
 
-def find_prospect_by_phone(phone_number):
+def find_prospect_by_phone(from_value):
     """
-    Busca un prospecto por número de teléfono normalizado.
-    
+    Busca un prospecto por el valor From del webhook (whatsapp:+cc...).
+    Normaliza quitando whatsapp: y prefijo de país, luego busca por phone_number.
+
     Args:
-        phone_number: Número de teléfono a buscar
-    
+        from_value: Valor de From enviado por Twilio
+
     Returns:
         Prospect o None
     """
-    if not phone_number:
+    if not from_value:
         return None
-    
-    normalized = normalize_phone_number(phone_number)
+    normalized = normalize_whatsapp_from_number(from_value)
     if not normalized:
         return None
-    
     try:
-        # Buscar por número exacto normalizado
         prospect = Prospect.objects.filter(phone_number=normalized).first()
         if prospect:
             return prospect
-        
-        # Buscar por número que contenga el normalizado (para casos con prefijos)
         prospects = Prospect.objects.filter(phone_number__contains=normalized)
         if prospects.exists():
             return prospects.first()
-        
     except Exception as e:
-        logger.error("Error al buscar prospecto por teléfono %s: %s", phone_number, e)
-    
+        logger.error("Error al buscar prospecto por teléfono %s: %s", from_value, e)
     return None
 
 
@@ -151,22 +141,13 @@ def twilio_whatsapp_webhook(request):
             return HttpResponseBadRequest('Missing required fields')
 
         raw_data = {k: v for k, v in request.POST.items()}
-        
-        # Determinar el tipo de evento
         event_type = determine_event_type(body)
-        
-        # Determinar si el opt-in está activo
-        is_active = True
-        if event_type == 'opt-out':
-            is_active = False
-        elif event_type == 'opt-in':
-            is_active = True
-        
-        # Buscar prospecto relacionado
         prospect = find_prospect_by_phone(from_number)
-        
-        # Crear o actualizar el registro
+
         with transaction.atomic():
+            if prospect:
+                prospect.allow_whatsapp = True
+                prospect.save(update_fields=['allow_whatsapp'])
             opt_in, created = WhatsAppOptIn.objects.update_or_create(
                 message_sid=message_sid,
                 defaults={
@@ -178,7 +159,6 @@ def twilio_whatsapp_webhook(request):
                     'profile_name': profile_name or None,
                     'wa_id': wa_id or None,
                     'event_type': event_type,
-                    'is_active': is_active,
                     'prospect': prospect,
                     'raw_data': raw_data,
                 }
