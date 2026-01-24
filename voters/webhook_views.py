@@ -125,7 +125,7 @@ def twilio_whatsapp_webhook(request):
         # Se puede deshabilitar temporalmente con TWILIO_SKIP_SIGNATURE_VALIDATION=true
         skip_validation = os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', 'False').lower() == 'true'
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        logger.info(
+        print(
             "[Twilio] Validación firma: TWILIO_AUTH_TOKEN=%s, TWILIO_SKIP_SIGNATURE_VALIDATION=%s, skip_validation=%s",
             "presente" if auth_token else "ausente",
             os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', ''),
