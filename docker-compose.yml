@@ -64,6 +64,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - TWOCAPTCHA_API_KEY=${TWOCAPTCHA_API_KEY:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy

@@ -162,14 +162,14 @@ class WhatsAppOptIn(models.Model):
     )
     from_number = models.CharField(
         _('número remitente'),
-        max_length=20,
+        max_length=64,
         db_index=True,
-        help_text=_('Número de WhatsApp del remitente')
+        help_text=_('Número de WhatsApp del remitente (ej. whatsapp:+573001234567)')
     )
     to_number = models.CharField(
         _('número receptor'),
-        max_length=20,
-        help_text=_('Número receptor')
+        max_length=64,
+        help_text=_('Número receptor (ej. whatsapp:+573001234567)')
     )
     body = models.TextField(
         _('contenido del mensaje'),
@@ -185,7 +185,7 @@ class WhatsAppOptIn(models.Model):
     )
     wa_id = models.CharField(
         _('WhatsApp ID'),
-        max_length=20,
+        max_length=64,
         blank=True,
         null=True,
         help_text=_('Identificador de WhatsApp del contacto')
