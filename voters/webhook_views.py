@@ -3,12 +3,10 @@ Vistas para webhooks externos.
 """
 import os
 import re
-import json
 import logging
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from django.utils import timezone
 from django.db import transaction
 from twilio.request_validator import RequestValidator
 from .models import WhatsAppOptIn, Prospect
@@ -103,7 +101,7 @@ def find_prospect_by_phone(phone_number):
             return prospects.first()
         
     except Exception as e:
-        logger.error(f"Error al buscar prospecto por teléfono {phone_number}: {e}")
+        logger.error("Error al buscar prospecto por teléfono %s: %s", phone_number, e)
     
     return None
 
@@ -117,91 +115,28 @@ def twilio_whatsapp_webhook(request):
     Este endpoint es público pero valida la firma de Twilio para seguridad.
     """
     try:
-        # Logging inicial: solo headers relevantes para Twilio (evitar volcar todo META)
         meta = request.META
-        headers_debug = {
-            'HTTP_HOST': meta.get('HTTP_HOST'),
-            'HTTP_X_FORWARDED_HOST': meta.get('HTTP_X_FORWARDED_HOST'),
-            'HTTP_X_FORWARDED_PROTO': meta.get('HTTP_X_FORWARDED_PROTO'),
-            'HTTP_X_FORWARDED_FOR': meta.get('HTTP_X_FORWARDED_FOR'),
-            'HTTP_X_TWILIO_SIGNATURE': 'presente' if meta.get('HTTP_X_TWILIO_SIGNATURE') else 'ausente',
-        }
-        logger.info(
-            "[Twilio] Webhook recibido: Method=%s, Path=%s, headers=%s",
-            request.method,
-            request.path,
-            headers_debug,
-        )
-
         skip_validation = os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', 'False').lower() == 'true'
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
         webhook_url = (os.getenv('TWILIO_WEBHOOK_URL') or '').strip() or None
-        logger.info(
-            "[Twilio] Validación firma: TWILIO_AUTH_TOKEN=%s, TWILIO_SKIP_SIGNATURE_VALIDATION=%s, skip_validation=%s, TWILIO_WEBHOOK_URL=%s",
-            "presente" if auth_token else "ausente",
-            os.getenv('TWILIO_SKIP_SIGNATURE_VALIDATION', ''),
-            skip_validation,
-            "presente" if webhook_url else "ausente",
-        )
 
         if auth_token and not skip_validation:
             try:
                 validator = RequestValidator(auth_token)
                 signature = request.META.get('HTTP_X_TWILIO_SIGNATURE', '')
-                logger.info(
-                    "[Twilio] Firma recibida: header X-Twilio-Signature=%s, len=%d",
-                    "presente" if signature else "ausente",
-                    len(signature) if signature else 0,
-                )
-
                 if webhook_url:
                     url = webhook_url
-                    logger.info("[Twilio] URL usada para validación (TWILIO_WEBHOOK_URL): %s", url)
                 else:
                     host = meta.get('HTTP_X_FORWARDED_HOST') or meta.get('HTTP_HOST') or request.get_host()
                     protocol = 'https' if meta.get('HTTP_X_FORWARDED_PROTO') == 'https' or request.is_secure() else 'http'
-                    path = request.path
-                    url = f"{protocol}://{host}{path}"
-                    logger.info(
-                        "[Twilio] URL usada para validación (desde request): %s (Host=%s, X-Forwarded-Host=%s, X-Forwarded-Proto=%s, path=%s)",
-                        url,
-                        meta.get('HTTP_HOST'),
-                        meta.get('HTTP_X_FORWARDED_HOST'),
-                        meta.get('HTTP_X_FORWARDED_PROTO'),
-                        path,
-                    )
-
+                    url = f"{protocol}://{host}{request.path}"
                 params = {k: v for k, v in request.POST.items()}
-                logger.info("[Twilio] Params para validación: keys=%s, count=%d", list(params.keys()), len(params))
-
-                if not signature:
-                    logger.warning("[Twilio] Validación omitida: no hay X-Twilio-Signature, continuando sin validar")
-                else:
-                    is_valid = validator.validate(url, params, signature)
-                    logger.info("[Twilio] validator.validate(url, params, signature) => %s", is_valid)
-                    if not is_valid:
-                        logger.warning(
-                            "[Twilio] Firma INVÁLIDA. URL usada=%s. Comprueba que la URL en Twilio Console coincida exactamente.",
-                            url,
-                        )
-                        debug_mode = os.getenv('DEBUG', 'False').lower() == 'true'
-                        if not debug_mode:
-                            logger.warning("[Twilio] Rechazando petición (Invalid signature)")
-                            return HttpResponseBadRequest('Invalid signature')
-                        logger.warning("[Twilio] DEBUG=true: continuando a pesar de firma inválida")
-                    else:
-                        logger.info("[Twilio] Firma válida, continuando")
+                if signature and not validator.validate(url, params, signature):
+                    logger.warning("[Twilio] Firma inválida, rechazando petición")
+                    return HttpResponseBadRequest('Invalid signature')
             except Exception as e:
-                logger.error("[Twilio] Excepción al validar firma: %s", e, exc_info=True)
-        elif skip_validation:
-            logger.warning("[Twilio] Validación deshabilitada por TWILIO_SKIP_SIGNATURE_VALIDATION=true")
-        else:
-            logger.warning("[Twilio] TWILIO_AUTH_TOKEN no configurado, webhook sin validación de firma")
-        
-        # Logging de parámetros recibidos
-        logger.info(f"POST data keys: {list(request.POST.keys())}")
-        
-        # Extraer parámetros del request
+                logger.error("[Twilio] Error al validar firma: %s", e, exc_info=True)
+
         message_sid = request.POST.get('MessageSid', '')
         account_sid = request.POST.get('AccountSid', '')
         messaging_service_sid = request.POST.get('MessagingServiceSid', '')
@@ -211,17 +146,11 @@ def twilio_whatsapp_webhook(request):
         profile_name = request.POST.get('ProfileName', '')
         wa_id = request.POST.get('WaId', '')
         
-        logger.info(f"Parámetros extraídos: message_sid={message_sid[:10] if message_sid else None}..., from={from_number}")
-        
-        # Guardar todos los datos recibidos en raw_data
-        raw_data = {}
-        for key, value in request.POST.items():
-            raw_data[key] = value
-        
-        # Validar que tenemos los campos mínimos
         if not message_sid or not account_sid or not from_number:
-            logger.error(f"Webhook recibido sin campos mínimos: message_sid={message_sid}, account_sid={account_sid}, from_number={from_number}")
+            logger.error("[Twilio] Webhook sin campos mínimos: message_sid=%s, account_sid=%s, from_number=%s", message_sid, account_sid, from_number)
             return HttpResponseBadRequest('Missing required fields')
+
+        raw_data = {k: v for k, v in request.POST.items()}
         
         # Determinar el tipo de evento
         event_type = determine_event_type(body)
@@ -254,18 +183,11 @@ def twilio_whatsapp_webhook(request):
                     'raw_data': raw_data,
                 }
             )
-            
-            if created:
-                logger.info(f"Nuevo opt-in creado: {opt_in.message_sid} - {from_number} - {event_type}")
-            else:
-                logger.info(f"Opt-in actualizado: {opt_in.message_sid} - {from_number} - {event_type}")
-        
+
         # Retornar respuesta TwiML válida
         twiml_response = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
         return HttpResponse(twiml_response, content_type='text/xml')
         
     except Exception as e:
-        logger.error(f"Error al procesar webhook de Twilio: {e}", exc_info=True)
-        # Retornar respuesta válida incluso en caso de error para que Twilio no reintente
-        twiml_response = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
-        return HttpResponse(twiml_response, content_type='text/xml')
+        logger.error("[Twilio] Error al procesar webhook: %s", e, exc_info=True)
+        return HttpResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', content_type='text/xml')
