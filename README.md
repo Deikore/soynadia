@@ -734,22 +734,31 @@ curl -X DELETE http://tu-dominio.com/api/prospects/1/ \
 
 ### Configuración del Webhook
 
-El sistema incluye un endpoint webhook para recibir opt-ins de WhatsApp desde Twilio.
+El sistema incluye un endpoint webhook para recibir mensajes de WhatsApp desde Twilio y gestionar el opt-in mediante plantillas interactivas.
 
 #### 1. Configurar Variables de Entorno
 
 Agrega estas variables al archivo `.env`:
 
 ```env
+# Autenticación y validación
 TWILIO_AUTH_TOKEN=your-twilio-auth-token-here
-# Obligatoria cuando usas Cloudflare Tunnel (o proxy que no envíe X-Forwarded-Proto correctamente)
+TWILIO_ACCOUNT_SID=your-twilio-account-sid-here
+TWILIO_WHATSAPP_NUMBER=whatsapp:+573001234567
+
+# URL del webhook (obligatoria cuando usas Cloudflare Tunnel)
 TWILIO_WEBHOOK_URL=https://tu-dominio.com/webhooks/twilio/whatsapp/
+
+# Plantillas de Twilio para opt-in
+TWILIO_OPTIN_TEMPLATE_SID=HXc3259a2a93ad765cb532b2919bc2b1dd
+TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID=HXf790520f9af4858389bec0ac00cf0b87
 ```
 
-**Obtener el Auth Token:**
+**Obtener las credenciales:**
 1. Accede a [Twilio Console](https://console.twilio.com/)
-2. Ve a "Settings" → "General"
-3. Copia el "Auth Token"
+2. **Auth Token**: Ve a "Settings" → "General" → Copia el "Auth Token"
+3. **Account SID**: Visible en el dashboard principal (formato: `ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
+4. **WhatsApp Number**: Tu número de WhatsApp Business (formato: `whatsapp:+573001234567`)
 
 **TWILIO_WEBHOOK_URL:** Debe ser la URL **exacta** del webhook tal como está en Twilio Console (mismo protocolo, dominio, path y trailing slash). Si usas Cloudflare Tunnel, la validación de firma falla si construyes la URL desde los headers (Nginx recibe HTTP del tunnel); en ese caso **debes** definir `TWILIO_WEBHOOK_URL` en `.env`.
 
@@ -784,14 +793,37 @@ POST https://tu-dominio.com/webhooks/twilio/whatsapp/
 
 **Características:**
 - Validación de firma de Twilio (requiere `TWILIO_AUTH_TOKEN`)
-- Almacenamiento automático de opt-ins en `WhatsAppOptIn`
-- Detección automática de tipo de evento (opt-in, opt-out, mensaje)
+- Almacenamiento automático de todos los mensajes en `WhatsAppMessage` (relacionados por número de teléfono normalizado)
+- Gestión de opt-in/opt-out mediante `WhatsAppAccount` (independiente de Prospect)
+- Flujo automático de opt-in con plantillas de Twilio:
+  - **Primera vez**: Si un usuario escribe por primera vez (no existe `WhatsAppAccount` para ese número), se envía automáticamente la plantilla de opt-in (`TWILIO_OPTIN_TEMPLATE_SID`)
+  - **Respuesta SI**: Si el usuario responde "SI" al quick reply, se marca `optin_whatsapp = True` y se envía la plantilla de confirmación (`TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID`)
+  - **Respuesta NO**: Si el usuario responde "NO", se marca `optout_whatsapp = True`
 - Extracción del número del remitente: se quita el prefijo `whatsapp:` y el **prefijo de país correspondiente** (+57, +1, +52, etc.), ya que no siempre son números colombianos
-- Match por `Prospect.phone_number` y actualización de `Prospect.allow_whatsapp = True` cuando coincide
-- Vinculación automática del opt-in con el Prospect (FK)
 - Respuesta TwiML válida para Twilio
 
-#### 4. Tipos de Eventos Detectados
+#### 4. Flujo de Opt-in con Plantillas
+
+El sistema implementa un flujo automático de opt-in mediante plantillas de Twilio:
+
+1. **Primera vez que un usuario escribe:**
+   - El sistema detecta que no existe un `WhatsAppAccount` para ese número de teléfono
+   - Se envía automáticamente la plantilla de opt-in (`TWILIO_OPTIN_TEMPLATE_SID`)
+   - Esta plantilla debe ser un quick reply con opciones "SI" y "NO"
+
+2. **Usuario responde "SI":**
+   - El sistema detecta la respuesta del quick reply (campo `ButtonText` o `ButtonPayload`)
+   - Se crea o actualiza el `WhatsAppAccount` con `optin_whatsapp = True` y `optout_whatsapp = False`
+   - Se envía automáticamente la plantilla de confirmación (`TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID`)
+
+3. **Usuario responde "NO":**
+   - El sistema detecta la respuesta del quick reply
+   - Se crea o actualiza el `WhatsAppAccount` con `optin_whatsapp = False` y `optout_whatsapp = True`
+   - No se envía ninguna plantilla adicional
+
+**Nota:** El estado de opt-in/opt-out se almacena en `WhatsAppAccount`, que está relacionado **solo por número de teléfono** (no por Prospect). Esto permite gestionar el opt-in incluso si no existe un Prospect para ese número.
+
+#### 5. Tipos de Eventos Detectados
 
 El sistema detecta automáticamente el tipo de evento basado en el contenido del mensaje:
 
@@ -801,16 +833,17 @@ El sistema detecta automáticamente el tipo de evento basado en el contenido del
 
 **Mensaje:** Cualquier otro contenido
 
-#### 5. Ver Opt-ins Recibidos
+#### 6. Ver Mensajes y Cuentas de WhatsApp
 
-Los opt-ins se pueden ver y gestionar desde:
-- **Django Admin**: `/admin/voters/whatsappoptin/`
+Los mensajes y cuentas se pueden ver y gestionar desde:
+- **Django Admin**: 
+  - `/admin/voters/whatsappmessage/` - Todos los mensajes recibidos
+  - `/admin/voters/whatsappaccount/` - Estados de opt-in/opt-out por número de teléfono
 - Los registros incluyen:
-  - Número de teléfono del remitente
+  - Número de teléfono normalizado
   - Tipo de evento
-  - Prospecto relacionado (si el número coincide)
-  - Datos completos recibidos de Twilio
-- Si hay match, el Prospect se marca con `allow_whatsapp = True` y se muestra un icono de WhatsApp en la lista de prospectos y en el admin.
+  - Estado de opt-in/opt-out (en `WhatsAppAccount`)
+  - Datos completos recibidos de Twilio (en `WhatsAppMessage`)
 
 #### 6. Seguridad
 
@@ -820,7 +853,7 @@ Los opt-ins se pueden ver y gestionar desde:
 - El endpoint es público pero protegido por validación de firma
 - Para debugging temporal, puedes deshabilitar la validación con `TWILIO_SKIP_SIGNATURE_VALIDATION=true` (NO recomendado para producción)
 
-#### 6.1. Troubleshooting Error 403
+#### 7.1. Troubleshooting Error 403
 
 Si recibes un error 403 al configurar el webhook:
 
@@ -933,29 +966,38 @@ El error "Attention Required! | Cloudflare" significa que Cloudflare está bloqu
 
 **Nota importante:** La página "Attention Required!" es la página de desafío de Cloudflare. Si ves esta página, significa que Cloudflare está bloqueando la petición antes de que llegue a tu servidor Django.
 
-#### 7. Ejemplo de Uso
+#### 8. Ejemplo de Uso
 
-Cuando un usuario envía un mensaje de WhatsApp a tu número de Twilio:
+**Flujo completo de opt-in:**
 
-1. Twilio envía una petición POST al webhook
-2. El sistema valida la firma
-3. Extrae el número del remitente (`From`): quita `whatsapp:` y el prefijo de país correspondiente (+57, +1, +52, etc.)
-4. Busca un Prospect cuyo `phone_number` coincida con el número normalizado
-5. Si hay match: actualiza `Prospect.allow_whatsapp = True`
-6. Crea o actualiza el registro de `WhatsAppOptIn` (vinculado al Prospect vía FK)
-7. Retorna respuesta TwiML válida
+1. **Usuario escribe por primera vez:**
+   - Usuario envía cualquier mensaje a tu número de Twilio
+   - Twilio envía una petición POST al webhook
+   - El sistema valida la firma
+   - Extrae el número del remitente (`From`): quita `whatsapp:` y el prefijo de país correspondiente (+57, +1, +52, etc.)
+   - Detecta que no existe `WhatsAppAccount` para ese número → es "primera vez"
+   - Envía automáticamente la plantilla de opt-in (`TWILIO_OPTIN_TEMPLATE_SID`)
+   - Crea el registro en `WhatsAppMessage` con el número normalizado
+   - Retorna respuesta TwiML válida
 
-**Mensaje de ejemplo para opt-in:**
-```
-Usuario envía: "START"
-Sistema detecta: event_type = 'opt-in'
-```
+2. **Usuario responde "SI" al quick reply:**
+   - Twilio envía la respuesta del botón al webhook
+   - El sistema detecta `ButtonText` o `ButtonPayload` con "SI"
+   - Crea o actualiza `WhatsAppAccount` con `optin_whatsapp = True`
+   - Envía automáticamente la plantilla de confirmación (`TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID`)
+   - Crea el registro en `WhatsAppMessage`
+   - Retorna respuesta TwiML válida
 
-**Mensaje de ejemplo para opt-out:**
-```
-Usuario envía: "STOP"
-Sistema detecta: event_type = 'opt-out'
-```
+3. **Usuario responde "NO" al quick reply:**
+   - Twilio envía la respuesta del botón al webhook
+   - El sistema detecta `ButtonText` o `ButtonPayload` con "NO"
+   - Crea o actualiza `WhatsAppAccount` con `optout_whatsapp = True`
+   - Crea el registro en `WhatsAppMessage`
+   - Retorna respuesta TwiML válida (sin enviar plantilla adicional)
+
+**Modelos de datos:**
+- `WhatsAppAccount`: Almacena el estado de opt-in/opt-out por número de teléfono (independiente de Prospect)
+- `WhatsAppMessage`: Almacena todos los mensajes recibidos, relacionados por número de teléfono normalizado
 
 ## 📄 Formulario embebible (GoDaddy)
 

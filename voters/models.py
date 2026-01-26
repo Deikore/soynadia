@@ -91,12 +91,6 @@ class Prospect(models.Model):
         blank=True,
         help_text=_('Autorización de envío de información desde formulario embebido'),
     )
-    allow_whatsapp = models.BooleanField(
-        _('permite WhatsApp'),
-        default=False,
-        blank=True,
-        help_text=_('Indica que se recibió al menos un mensaje de WhatsApp asociado a este prospecto.'),
-    )
 
     class Meta:
         verbose_name = _('prospecto')
@@ -149,9 +143,42 @@ class ApiKey(models.Model):
         return secrets.token_urlsafe(48)[:64]
 
 
-class WhatsAppOptIn(models.Model):
+class WhatsAppAccount(models.Model):
     """
-    Modelo para almacenar opt-ins de WhatsApp recibidos desde Twilio.
+    Modelo para almacenar el estado de opt-in/opt-out de WhatsApp por número de teléfono.
+    """
+    phone_number = models.CharField(
+        _('número de teléfono'),
+        max_length=20,
+        unique=True,
+        db_index=True,
+        help_text=_('Número de teléfono normalizado (solo dígitos, sin prefijos)')
+    )
+    optin_whatsapp = models.BooleanField(
+        _('opt-in WhatsApp'),
+        default=False,
+        help_text=_('Si el usuario aceptó opt-in')
+    )
+    optout_whatsapp = models.BooleanField(
+        _('opt-out WhatsApp'),
+        default=False,
+        help_text=_('Si el usuario rechazó opt-in')
+    )
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('fecha de actualización'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Cuenta WhatsApp')
+        verbose_name_plural = _('Cuentas WhatsApp')
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f'{self.phone_number} - Opt-in: {self.optin_whatsapp}, Opt-out: {self.optout_whatsapp}'
+
+
+class WhatsAppMessage(models.Model):
+    """
+    Modelo para almacenar todos los mensajes de WhatsApp recibidos desde Twilio.
     """
     EVENT_TYPE_CHOICES = [
         ('opt-in', 'Opt-in'),
@@ -216,14 +243,11 @@ class WhatsAppOptIn(models.Model):
         default='message',
         help_text=_('Tipo de evento recibido')
     )
-    prospect = models.ForeignKey(
-        Prospect,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='whatsapp_opt_ins',
-        verbose_name=_('prospecto'),
-        help_text=_('Prospecto relacionado si el número coincide')
+    phone_number_normalized = models.CharField(
+        _('número de teléfono normalizado'),
+        max_length=20,
+        db_index=True,
+        help_text=_('Número de teléfono normalizado (sin whatsapp:, sin prefijo país)')
     )
     received_at = models.DateTimeField(
         _('fecha de recepción'),
@@ -238,12 +262,13 @@ class WhatsAppOptIn(models.Model):
     )
 
     class Meta:
-        verbose_name = _('WhatsApp Opt-in')
-        verbose_name_plural = _('WhatsApp Opt-ins')
+        verbose_name = _('Mensaje WhatsApp')
+        verbose_name_plural = _('Mensajes WhatsApp')
         ordering = ['-received_at']
         indexes = [
             models.Index(fields=['message_sid']),
             models.Index(fields=['from_number']),
+            models.Index(fields=['phone_number_normalized']),
             models.Index(fields=['received_at']),
         ]
 

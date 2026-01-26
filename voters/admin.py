@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
-from .models import Prospect, ApiKey, OriginProspect, WhatsAppOptIn
+from .models import Prospect, ApiKey, OriginProspect, WhatsAppMessage, WhatsAppAccount
 from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult
 from .tasks import process_prospect
 
@@ -41,8 +41,8 @@ class ProspectAdmin(admin.ModelAdmin):
     """
     Admin para el modelo Prospect.
     """
-    list_display = ('identification_number', 'first_name', 'last_name', 'phone_number', 'polling_station_consulted', 'allow_whatsapp', 'created_at', 'display_created_by')
-    list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted', 'allow_whatsapp')
+    list_display = ('identification_number', 'first_name', 'last_name', 'phone_number', 'polling_station_consulted', 'created_at', 'display_created_by')
+    list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted')
     search_fields = ('identification_number', 'first_name', 'last_name', 'phone_number')
     readonly_fields = (
         'created_at', 
@@ -61,7 +61,7 @@ class ProspectAdmin(admin.ModelAdmin):
     filter_horizontal = ('origins',)
     fieldsets = (
         (_('Información del Prospecto'), {
-            'fields': ('identification_number', 'first_name', 'last_name', 'phone_number', 'origins', 'allow_whatsapp')
+            'fields': ('identification_number', 'first_name', 'last_name', 'phone_number', 'origins')
         }),
         (_('Información Electoral'), {
             'fields': (
@@ -171,14 +171,34 @@ class ApiKeyAdmin(admin.ModelAdmin):
     key_preview.short_description = _('Key Preview')
 
 
-@admin.register(WhatsAppOptIn)
-class WhatsAppOptInAdmin(admin.ModelAdmin):
+@admin.register(WhatsAppAccount)
+class WhatsAppAccountAdmin(admin.ModelAdmin):
     """
-    Admin para el modelo WhatsAppOptIn.
+    Admin para el modelo WhatsAppAccount.
     """
-    list_display = ('message_sid', 'from_number', 'event_type', 'received_at', 'prospect')
+    list_display = ('phone_number', 'optin_whatsapp', 'optout_whatsapp', 'created_at', 'updated_at')
+    list_filter = ('optin_whatsapp', 'optout_whatsapp', 'created_at', 'updated_at')
+    search_fields = ('phone_number',)
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (_('Información de la Cuenta'), {
+            'fields': ('phone_number', 'optin_whatsapp', 'optout_whatsapp')
+        }),
+        (_('Metadata'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(WhatsAppMessage)
+class WhatsAppMessageAdmin(admin.ModelAdmin):
+    """
+    Admin para el modelo WhatsAppMessage.
+    """
+    list_display = ('message_sid', 'from_number', 'phone_number_normalized', 'event_type', 'received_at')
     list_filter = ('event_type', 'received_at')
-    search_fields = ('from_number', 'profile_name', 'message_sid', 'body')
+    search_fields = ('from_number', 'phone_number_normalized', 'profile_name', 'message_sid', 'body')
     readonly_fields = (
         'message_sid',
         'account_sid',
@@ -189,11 +209,10 @@ class WhatsAppOptInAdmin(admin.ModelAdmin):
         'profile_name',
         'wa_id',
         'event_type',
-        'prospect',
+        'phone_number_normalized',
         'received_at',
         'raw_data',
     )
-    raw_id_fields = ['prospect']
     fieldsets = (
         (_('Información del Mensaje'), {
             'fields': (
@@ -206,10 +225,8 @@ class WhatsAppOptInAdmin(admin.ModelAdmin):
                 'profile_name',
                 'wa_id',
                 'event_type',
+                'phone_number_normalized',
             )
-        }),
-        (_('Relaciones'), {
-            'fields': ('prospect',)
         }),
         (_('Metadata'), {
             'fields': ('received_at', 'raw_data'),

@@ -28,7 +28,6 @@ class ProspectSerializer(serializers.ModelSerializer):
             'resolution',
             'notice_date',
             'polling_station_consulted',
-            'allow_whatsapp',
             'created_at',
             'updated_at',
             'created_by_email',
@@ -48,7 +47,6 @@ class ProspectSerializer(serializers.ModelSerializer):
             'resolution',
             'notice_date',
             'polling_station_consulted',
-            'allow_whatsapp',
         ]
 
     def validate_identification_number(self, value):

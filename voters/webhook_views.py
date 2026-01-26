@@ -9,7 +9,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction
 from twilio.request_validator import RequestValidator
-from .models import WhatsAppOptIn, Prospect
+from twilio.rest import Client
+from .models import WhatsAppMessage, WhatsAppAccount
 
 logger = logging.getLogger(__name__)
 
@@ -68,32 +69,47 @@ def determine_event_type(body):
     return 'message'
 
 
-def find_prospect_by_phone(from_value):
+def send_whatsapp_template(phone_number_normalized, template_sid):
     """
-    Busca un prospecto por el valor From del webhook (whatsapp:+cc...).
-    Normaliza quitando whatsapp: y prefijo de país, luego busca por phone_number.
-
+    Envía una plantilla de Twilio a un número de teléfono normalizado.
+    
     Args:
-        from_value: Valor de From enviado por Twilio
-
+        phone_number_normalized: Número nacional (sin whatsapp:, sin prefijo país)
+        template_sid: SID de la plantilla de Twilio
+    
     Returns:
-        Prospect o None
+        bool: True si se envió correctamente, False en caso contrario
     """
-    if not from_value:
-        return None
-    normalized = normalize_whatsapp_from_number(from_value)
-    if not normalized:
-        return None
     try:
-        prospect = Prospect.objects.filter(phone_number=normalized).first()
-        if prospect:
-            return prospect
-        prospects = Prospect.objects.filter(phone_number__contains=normalized)
-        if prospects.exists():
-            return prospects.first()
+        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        whatsapp_number = os.getenv('TWILIO_WHATSAPP_NUMBER')
+        
+        if not account_sid or not auth_token or not whatsapp_number:
+            logger.error("[Twilio] Faltan variables de entorno para enviar plantilla: ACCOUNT_SID=%s, AUTH_TOKEN=%s, WHATSAPP_NUMBER=%s", 
+                        bool(account_sid), bool(auth_token), bool(whatsapp_number))
+            return False
+        
+        # Construir número en formato whatsapp:+cc...
+        # Necesitamos el código de país. Asumimos Colombia (+57) si no está claro
+        # En producción, deberías detectar el país del número normalizado
+        if not phone_number_normalized.startswith('+'):
+            # Asumir Colombia si no tiene prefijo
+            to_number = f'whatsapp:+57{phone_number_normalized}'
+        else:
+            to_number = f'whatsapp:{phone_number_normalized}'
+        
+        client = Client(account_sid, auth_token)
+        message = client.messages.create(
+            content_sid=template_sid,
+            from_=whatsapp_number,
+            to=to_number
+        )
+        logger.info("[Twilio] Plantilla enviada: SID=%s, to=%s, template=%s", message.sid, to_number, template_sid)
+        return True
     except Exception as e:
-        logger.error("Error al buscar prospecto por teléfono %s: %s", from_value, e)
-    return None
+        logger.error("[Twilio] Error al enviar plantilla a %s: %s", phone_number_normalized, e, exc_info=True)
+        return False
 
 
 @require_POST
@@ -142,13 +158,57 @@ def twilio_whatsapp_webhook(request):
 
         raw_data = {k: v for k, v in request.POST.items()}
         event_type = determine_event_type(body)
-        prospect = find_prospect_by_phone(from_number)
-
+        
+        # Normalizar número para búsqueda
+        phone_number_normalized = normalize_whatsapp_from_number(from_number)
+        if not phone_number_normalized:
+            logger.warning("[Twilio] No se pudo normalizar número: %s", from_number)
+            phone_number_normalized = ''
+        
+        # Detectar respuesta de quick reply
+        button_text = request.POST.get('ButtonText', '').strip().upper()
+        button_payload = request.POST.get('ButtonPayload', '').strip().upper()
+        is_quick_reply = bool(button_text or button_payload)
+        is_si = 'SI' in button_text or 'SI' in button_payload or button_payload == 'SI'
+        is_no = 'NO' in button_text or 'NO' in button_payload or button_payload == 'NO'
+        
         with transaction.atomic():
-            if prospect:
-                prospect.allow_whatsapp = True
-                prospect.save(update_fields=['allow_whatsapp'])
-            opt_in, created = WhatsAppOptIn.objects.update_or_create(
+            # Buscar o crear WhatsAppAccount
+            account = None
+            account_created = False
+            if phone_number_normalized:
+                account, account_created = WhatsAppAccount.objects.get_or_create(
+                    phone_number=phone_number_normalized,
+                    defaults={
+                        'optin_whatsapp': False,
+                        'optout_whatsapp': False,
+                    }
+                )
+            
+            # Detectar "primera vez" (no existe WhatsAppAccount para este número)
+            is_first_time = account_created if phone_number_normalized else False
+            
+            # Si es primera vez y no es un quick reply, enviar plantilla de opt-in
+            if is_first_time and not is_quick_reply and phone_number_normalized:
+                optin_template_sid = os.getenv('TWILIO_OPTIN_TEMPLATE_SID', 'HXc3259a2a93ad765cb532b2919bc2b1dd')
+                send_whatsapp_template(phone_number_normalized, optin_template_sid)
+            
+            # Procesar respuesta de quick reply
+            if is_quick_reply and account:
+                if is_si:
+                    account.optin_whatsapp = True
+                    account.optout_whatsapp = False
+                    account.save(update_fields=['optin_whatsapp', 'optout_whatsapp', 'updated_at'])
+                    # Enviar segunda plantilla de confirmación
+                    confirmed_template_sid = os.getenv('TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID', 'HXf790520f9af4858389bec0ac00cf0b87')
+                    send_whatsapp_template(phone_number_normalized, confirmed_template_sid)
+                elif is_no:
+                    account.optin_whatsapp = False
+                    account.optout_whatsapp = True
+                    account.save(update_fields=['optin_whatsapp', 'optout_whatsapp', 'updated_at'])
+            
+            # Guardar mensaje en WhatsAppMessage
+            message, created = WhatsAppMessage.objects.update_or_create(
                 message_sid=message_sid,
                 defaults={
                     'account_sid': account_sid,
@@ -159,7 +219,7 @@ def twilio_whatsapp_webhook(request):
                     'profile_name': profile_name or None,
                     'wa_id': wa_id or None,
                     'event_type': event_type,
-                    'prospect': prospect,
+                    'phone_number_normalized': phone_number_normalized,
                     'raw_data': raw_data,
                 }
             )
