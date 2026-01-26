@@ -154,6 +154,15 @@ class WhatsAppAccount(models.Model):
         db_index=True,
         help_text=_('Número de teléfono normalizado (solo dígitos, sin prefijos)')
     )
+    prospect = models.ForeignKey(
+        Prospect,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='whatsapp_accounts',
+        verbose_name=_('prospecto'),
+        help_text=_('Prospecto relacionado si el número de teléfono coincide')
+    )
     optin_whatsapp = models.BooleanField(
         _('opt-in WhatsApp'),
         default=False,

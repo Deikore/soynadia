@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from django.db import transaction
 from twilio.request_validator import RequestValidator
 from twilio.rest import Client
-from .models import WhatsAppMessage, WhatsAppAccount
+from .models import WhatsAppMessage, WhatsAppAccount, Prospect
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +165,19 @@ def twilio_whatsapp_webhook(request):
             logger.warning("[Twilio] No se pudo normalizar número: %s", from_number)
             phone_number_normalized = ''
         
+        # Buscar Prospect por número (siempre, en cada mensaje)
+        prospect = None
+        if phone_number_normalized:
+            try:
+                prospect = Prospect.objects.filter(phone_number=phone_number_normalized).first()
+                if not prospect:
+                    # Búsqueda flexible si no hay match exacto
+                    prospects = Prospect.objects.filter(phone_number__contains=phone_number_normalized)
+                    if prospects.exists():
+                        prospect = prospects.first()
+            except Exception as e:
+                logger.error("[Twilio] Error al buscar prospecto por teléfono %s: %s", phone_number_normalized, e)
+        
         # Detectar respuesta de quick reply
         button_text = request.POST.get('ButtonText', '').strip().upper()
         button_payload = request.POST.get('ButtonPayload', '').strip().upper()
@@ -177,13 +190,21 @@ def twilio_whatsapp_webhook(request):
             account = None
             account_created = False
             if phone_number_normalized:
+                defaults = {
+                    'optin_whatsapp': False,
+                    'optout_whatsapp': False,
+                }
+                if prospect:
+                    defaults['prospect'] = prospect
                 account, account_created = WhatsAppAccount.objects.get_or_create(
                     phone_number=phone_number_normalized,
-                    defaults={
-                        'optin_whatsapp': False,
-                        'optout_whatsapp': False,
-                    }
+                    defaults=defaults
                 )
+            
+            # Verificar y actualizar asociación (si el account ya existe pero no tiene prospect asociado)
+            if account and prospect and not account.prospect:
+                account.prospect = prospect
+                account.save(update_fields=['prospect'])
             
             # Detectar "primera vez" (no existe WhatsAppAccount para este número)
             is_first_time = account_created if phone_number_normalized else False

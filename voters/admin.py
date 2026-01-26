@@ -176,13 +176,14 @@ class WhatsAppAccountAdmin(admin.ModelAdmin):
     """
     Admin para el modelo WhatsAppAccount.
     """
-    list_display = ('phone_number', 'optin_whatsapp', 'optout_whatsapp', 'created_at', 'updated_at')
+    list_display = ('phone_number', 'prospect', 'optin_whatsapp', 'optout_whatsapp', 'created_at', 'updated_at')
     list_filter = ('optin_whatsapp', 'optout_whatsapp', 'created_at', 'updated_at')
     search_fields = ('phone_number',)
+    raw_id_fields = ['prospect']
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         (_('Información de la Cuenta'), {
-            'fields': ('phone_number', 'optin_whatsapp', 'optout_whatsapp')
+            'fields': ('phone_number', 'prospect', 'optin_whatsapp', 'optout_whatsapp')
         }),
         (_('Metadata'), {
             'fields': ('created_at', 'updated_at'),
