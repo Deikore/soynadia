@@ -5,7 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from .models import Prospect
 from .serializers import ProspectSerializer
 from .authentication import ApiKeyAuthentication
-from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult
+from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult, associate_whatsapp_account
 from .tasks import process_prospect
 
 
@@ -105,6 +105,10 @@ class ProspectViewSet(viewsets.ModelViewSet):
         instance = serializer.instance
         old_id = instance.identification_number
         super().perform_update(serializer)
+        
+        # Verificar y asociar WhatsAppAccount si hay match
+        associate_whatsapp_account(instance)
+        
         # Verificar si cambió el identification_number y disparar tarea si es necesario
         if not check_and_trigger_on_id_change(instance, old_id):
             # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos

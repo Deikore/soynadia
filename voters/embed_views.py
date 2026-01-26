@@ -14,7 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from django.db import transaction
 
 from .models import Prospect, OriginProspect
-from .utils import validate_and_normalize_phone, should_trigger_celery_task
+from .utils import validate_and_normalize_phone, should_trigger_celery_task, associate_whatsapp_account
 from .tasks import process_prospect
 
 
@@ -156,6 +156,9 @@ def embed_prospect_form(request):
             created_by=None,
         )
         prospect.origins.add(origin)
+
+    # Verificar y asociar WhatsAppAccount si hay match
+    associate_whatsapp_account(prospect)
 
     if should_trigger_celery_task(prospect):
         process_prospect.delay(prospect.id)

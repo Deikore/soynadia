@@ -16,6 +16,7 @@ from .utils import (
     check_and_trigger_on_id_change,
     trigger_polling_station_consult,
     validate_and_normalize_phone,
+    associate_whatsapp_account,
 )
 from .tasks import process_prospect
 
@@ -119,6 +120,9 @@ def prospect_create(request):
                 )
                 prospect.origins.add(manual_origin)
             
+            # Verificar y asociar WhatsAppAccount si hay match
+            associate_whatsapp_account(prospect)
+            
             # Verificar si se debe ejecutar la tarea de Celery
             if should_trigger_celery_task(prospect):
                 process_prospect.delay(prospect.id)
@@ -193,6 +197,10 @@ def prospect_update(request, pk):
             old_id = old_prospect.identification_number
             # Guardar el formulario y obtener la instancia actualizada
             prospect = form.save()
+            
+            # Verificar y asociar WhatsAppAccount si hay match
+            associate_whatsapp_account(prospect)
+            
             # Verificar si cambió el identification_number y disparar tarea si es necesario
             if not check_and_trigger_on_id_change(prospect, old_id):
                 # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
@@ -363,6 +371,10 @@ def prospect_bulk_upload(request):
                                     prospect.phone_number = normalized_phone
                                 prospect.save()
                                 prospect.origins.add(origin)
+                                
+                                # Verificar y asociar WhatsAppAccount si hay match
+                                associate_whatsapp_account(prospect)
+                                
                                 # Verificar si cambió el identification_number y disparar tarea si es necesario
                                 if not check_and_trigger_on_id_change(prospect, old_id):
                                     # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
@@ -378,6 +390,10 @@ def prospect_bulk_upload(request):
                                     created_by=request.user
                                 )
                                 prospect.origins.add(origin)
+                                
+                                # Verificar y asociar WhatsAppAccount si hay match
+                                associate_whatsapp_account(prospect)
+                                
                                 # Verificar si se debe ejecutar la tarea de Celery
                                 if should_trigger_celery_task(prospect):
                                     process_prospect.delay(prospect.id)

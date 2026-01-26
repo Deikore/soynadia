@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import Prospect, ApiKey, OriginProspect, WhatsAppMessage, WhatsAppAccount
-from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult
+from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult, associate_whatsapp_account
 from .tasks import process_prospect
 
 
@@ -98,6 +98,9 @@ class ProspectAdmin(admin.ModelAdmin):
                 )
                 obj.origins.add(manual_origin)
             
+            # Verificar y asociar WhatsAppAccount si hay match
+            associate_whatsapp_account(obj)
+            
             # Verificar si se debe ejecutar la tarea de Celery
             if should_trigger_celery_task(obj):
                 process_prospect.delay(obj.id)
@@ -105,6 +108,10 @@ class ProspectAdmin(admin.ModelAdmin):
             # Es una actualización: guardar el identification_number anterior
             old_id = obj.identification_number
             super().save_model(request, obj, form, change)
+            
+            # Verificar y asociar WhatsAppAccount si hay match
+            associate_whatsapp_account(obj)
+            
             # Verificar si cambió el identification_number y disparar tarea si es necesario
             if not check_and_trigger_on_id_change(obj, old_id):
                 # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos

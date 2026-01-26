@@ -2,10 +2,13 @@
 Utilidades para la app voters.
 """
 import re
+import logging
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from .models import Prospect
+from .models import Prospect, WhatsAppAccount
+
+logger = logging.getLogger(__name__)
 
 
 def validate_and_normalize_phone(phone):
@@ -158,3 +161,37 @@ def trigger_polling_station_consult(prospect):
     from .tasks import process_prospect
     process_prospect.delay(prospect.id)
     return True
+
+
+def associate_whatsapp_account(prospect):
+    """
+    Busca y asocia un WhatsAppAccount con un Prospect si hay match por número de teléfono.
+    Solo asocia si el WhatsAppAccount no tiene prospect asociado.
+    
+    Args:
+        prospect: Instancia del modelo Prospect (debe estar guardado en BD)
+    
+    Returns:
+        WhatsAppAccount o None: La cuenta asociada, o None si no se encontró o ya tenía prospect
+    """
+    if not prospect or not prospect.pk:
+        return None
+    
+    if not prospect.phone_number:
+        return None
+    
+    try:
+        # Buscar WhatsAppAccount por número exacto
+        account = WhatsAppAccount.objects.filter(
+            phone_number=prospect.phone_number
+        ).first()
+        
+        if account and not account.prospect:
+            # Asociar el prospect si la cuenta no tiene uno
+            account.prospect = prospect
+            account.save(update_fields=['prospect'])
+            return account
+    except Exception as e:
+        logger.error("Error al asociar WhatsAppAccount con Prospect %s: %s", prospect.pk, e, exc_info=True)
+    
+    return None
