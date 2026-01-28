@@ -82,17 +82,19 @@ def should_trigger_celery_task(prospect):
     return prospect.origins.filter(enable_consult_polling_station=True).exists()
 
 
-def check_and_trigger_on_id_change(prospect, old_identification_number):
+def check_and_trigger_on_id_change(prospect, old_identification_number, trigger_task=True):
     """
     Verifica si cambió el identification_number y resetea campos de información electoral.
-    Si cambió y el prospecto tiene origen con enable_consult_polling_station=True, dispara la tarea.
+    Si cambió y el prospecto tiene origen con enable_consult_polling_station=True, dispara la tarea
+    (o retorna el ID si trigger_task=False).
     
     Args:
         prospect: Instancia del modelo Prospect (ya guardado)
         old_identification_number: Número de identificación anterior (None si es nuevo)
+        trigger_task: Si True, dispara la tarea de Celery. Si False, retorna prospect.id para disparar después.
     
     Returns:
-        bool: True si se disparó la tarea, False en caso contrario
+        bool | int: True si se disparó la tarea, prospect.id si trigger_task=False y debe dispararse, False en caso contrario
     """
     if not prospect or not prospect.pk:
         return False
@@ -145,14 +147,16 @@ def check_and_trigger_on_id_change(prospect, old_identification_number):
     prospect = Prospect.objects.prefetch_related('origins').get(pk=prospect.pk)
     
     if should_trigger_celery_task(prospect):
-        from .tasks import process_prospect
-        process_prospect.delay(prospect.id)
-        return True
+        if trigger_task:
+            from .tasks import process_prospect
+            process_prospect.delay(prospect.id)
+            return True
+        return prospect.id
     
     return False
 
 
-def trigger_polling_station_consult(prospect):
+def trigger_polling_station_consult(prospect, trigger_task=True):
     """
     Verifica si debe disparar la consulta de lugar de votación para un prospecto.
     Solo dispara si tiene origen habilitado, aún no se ha consultado y tiene identification_number.
@@ -160,9 +164,10 @@ def trigger_polling_station_consult(prospect):
     
     Args:
         prospect: Instancia del modelo Prospect (ya guardado)
+        trigger_task: Si True, dispara la tarea de Celery. Si False, retorna prospect.id para disparar después.
     
     Returns:
-        bool: True si se disparó la tarea, False en caso contrario
+        bool | int: True si se disparó la tarea, prospect.id si trigger_task=False y debe dispararse, False en caso contrario
     """
     if not prospect or not prospect.pk:
         return False
@@ -182,10 +187,11 @@ def trigger_polling_station_consult(prospect):
     if prospect.polling_station_consulted:
         return False
     
-    # Disparar la tarea
-    from .tasks import process_prospect
-    process_prospect.delay(prospect.id)
-    return True
+    if trigger_task:
+        from .tasks import process_prospect
+        process_prospect.delay(prospect.id)
+        return True
+    return prospect.id
 
 
 def associate_whatsapp_account(prospect):

@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.translation import gettext_lazy as _
 from .models import Prospect, ApiKey, OriginProspect, WhatsAppMessage, WhatsAppAccount
 from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult, associate_whatsapp_account
@@ -36,11 +36,36 @@ class OriginProspectAdmin(admin.ModelAdmin):
         )
 
 
+@admin.action(description=_('Consultar puesto de votación (masivo)'))
+def run_polling_station_consult(self, request, queryset):
+    enqueued = 0
+    skipped = 0
+    for prospect in queryset:
+        if prospect.identification_number:
+            process_prospect.delay(prospect.id)
+            enqueued += 1
+        else:
+            skipped += 1
+    if enqueued:
+        self.message_user(
+            request,
+            _('Se encolaron %(n)s prospectos para consulta de puesto de votación.') % {'n': enqueued},
+            messages.SUCCESS,
+        )
+    if skipped:
+        self.message_user(
+            request,
+            _('Se omitieron %(n)s prospectos sin número de identificación.') % {'n': skipped},
+            messages.WARNING,
+        )
+
+
 @admin.register(Prospect)
 class ProspectAdmin(admin.ModelAdmin):
     """
     Admin para el modelo Prospect.
     """
+    actions = [run_polling_station_consult]
     list_display = ('identification_number', 'full_name', 'phone_number', 'polling_station_consulted', 'created_at', 'display_created_by')
     list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted')
     search_fields = ('identification_number', 'full_name', 'phone_number')

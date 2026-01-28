@@ -305,6 +305,7 @@ def prospect_bulk_upload(request):
                     'updated': 0,
                     'errors': []
                 }
+                prospect_ids_to_process = []
                 
                 with transaction.atomic():
                     for row_num, row in enumerate(csv_reader, start=2):  # Empezar en 2 (después del encabezado)
@@ -395,10 +396,14 @@ def prospect_bulk_upload(request):
                                 # Verificar y asociar WhatsAppAccount si hay match
                                 associate_whatsapp_account(prospect)
                                 
-                                # Verificar si cambió el identification_number y disparar tarea si es necesario
-                                if not check_and_trigger_on_id_change(prospect, old_id):
-                                    # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
-                                    trigger_polling_station_consult(prospect)
+                                # Recopilar ID para disparar tarea después de la transacción
+                                result = check_and_trigger_on_id_change(prospect, old_id, trigger_task=False)
+                                if result:
+                                    prospect_ids_to_process.append(result if isinstance(result, int) else prospect.id)
+                                else:
+                                    result2 = trigger_polling_station_consult(prospect, trigger_task=False)
+                                    if result2:
+                                        prospect_ids_to_process.append(result2 if isinstance(result2, int) else prospect.id)
                                 results['updated'] += 1
                             else:
                                 # Prospecto no existe: crear nuevo
@@ -413,9 +418,9 @@ def prospect_bulk_upload(request):
                                 # Verificar y asociar WhatsAppAccount si hay match
                                 associate_whatsapp_account(prospect)
                                 
-                                # Verificar si se debe ejecutar la tarea de Celery
+                                # Recopilar ID para disparar tarea después de la transacción
                                 if should_trigger_celery_task(prospect):
-                                    process_prospect.delay(prospect.id)
+                                    prospect_ids_to_process.append(prospect.id)
                                 results['created'] += 1
                                 
                         except Exception as e:
@@ -425,6 +430,10 @@ def prospect_bulk_upload(request):
                                 'identification_number': identification_number,
                                 'errors': row_errors
                             })
+                
+                # Disparar tareas de Celery después de que la transacción se haya confirmado
+                for prospect_id in prospect_ids_to_process:
+                    process_prospect.delay(prospect_id)
                 
                 # Mostrar mensajes de resultado
                 if results['created'] > 0:
