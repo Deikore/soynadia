@@ -17,6 +17,7 @@ from .utils import (
     trigger_polling_station_consult,
     validate_and_normalize_phone,
     associate_whatsapp_account,
+    normalize_digits_only,
 )
 from .tasks import process_prospect
 
@@ -311,13 +312,16 @@ def prospect_bulk_upload(request):
                         row_errors = []
                         
                         # Validar campos obligatorios
-                        identification_number = row.get('identification_number', '').strip()
+                        identification_number_raw = row.get('identification_number', '').strip()
                         full_name = row.get('full_name', '').strip()
                         phone_number = row.get('phone_number', '').strip()
                         origin_name = row.get('origin', '').strip()
                         
-                        if not identification_number:
-                            row_errors.append(_('identification_number es obligatorio'))
+                        # Normalizar identification_number: eliminar todos los caracteres no numéricos
+                        identification_number = None
+                        if identification_number_raw:
+                            identification_number_normalized = normalize_digits_only(identification_number_raw)
+                            identification_number = identification_number_normalized if identification_number_normalized else None
                         if not full_name:
                             row_errors.append(_('full_name es obligatorio'))
                         if not origin_name:

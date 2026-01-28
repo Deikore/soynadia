@@ -11,6 +11,21 @@ from .models import Prospect, WhatsAppAccount
 logger = logging.getLogger(__name__)
 
 
+def normalize_digits_only(value):
+    """
+    Elimina todos los caracteres no numéricos de una cadena.
+    
+    Args:
+        value: Cadena que puede contener caracteres no numéricos
+    
+    Returns:
+        str: Cadena con solo dígitos, o cadena vacía si value es None o vacío
+    """
+    if not value:
+        return ''
+    return re.sub(r'\D', '', str(value))
+
+
 def validate_and_normalize_phone(phone):
     """
     Valida y normaliza un número de teléfono colombiano.
@@ -20,10 +35,11 @@ def validate_and_normalize_phone(phone):
     if not phone or not phone.strip():
         return None
 
-    normalized = re.sub(r'[\s\-\(\)]', '', phone.strip())
-    if normalized.startswith('+57'):
-        normalized = normalized[3:]
-    elif normalized.startswith('57') and len(normalized) == 12:
+    # Eliminar todos los caracteres no numéricos
+    normalized = normalize_digits_only(phone)
+    
+    # Quitar prefijo 57 si existe (después de eliminar caracteres no numéricos, +57 se convierte en 57)
+    if normalized.startswith('57') and len(normalized) == 12:
         normalized = normalized[2:]
 
     if not normalized.isdigit() or len(normalized) != 10:
