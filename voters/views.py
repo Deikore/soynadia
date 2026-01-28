@@ -285,14 +285,14 @@ def prospect_bulk_upload(request):
                 csv_reader = csv.DictReader(io.StringIO(content_str), delimiter=delimiter)
                 
                 # Validar encabezados requeridos
-                required_headers = ['identification_number', 'first_name', 'last_name', 'phone_number', 'origin']
+                required_headers = ['identification_number', 'full_name', 'phone_number', 'origin']
                 if not csv_reader.fieldnames:
                     messages.error(request, _('El archivo CSV está vacío o no tiene encabezados válidos.'))
                     form = BulkUploadForm()
                     return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
                 
                 if not all(header in csv_reader.fieldnames for header in required_headers):
-                    messages.error(request, _('El archivo CSV debe contener los siguientes encabezados: identification_number, first_name, last_name, phone_number, origin'))
+                    messages.error(request, _('El archivo CSV debe contener los siguientes encabezados: identification_number, full_name, phone_number, origin'))
                     form = BulkUploadForm()
                     return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
                 
@@ -311,17 +311,14 @@ def prospect_bulk_upload(request):
                         
                         # Validar campos obligatorios
                         identification_number = row.get('identification_number', '').strip()
-                        first_name = row.get('first_name', '').strip()
-                        last_name = row.get('last_name', '').strip()
+                        full_name = row.get('full_name', '').strip()
                         phone_number = row.get('phone_number', '').strip()
                         origin_name = row.get('origin', '').strip()
                         
                         if not identification_number:
                             row_errors.append(_('identification_number es obligatorio'))
-                        if not first_name:
-                            row_errors.append(_('first_name es obligatorio'))
-                        if not last_name:
-                            row_errors.append(_('last_name es obligatorio'))
+                        if not full_name:
+                            row_errors.append(_('full_name es obligatorio'))
                         if not origin_name:
                             row_errors.append(_('origin es obligatorio'))
                         
@@ -365,8 +362,7 @@ def prospect_bulk_upload(request):
                                 # pero guardamos old_id para verificar por si en el futuro se permite cambiar
                                 old_id = prospect.identification_number
                                 # Actualizar campos y agregar origin
-                                prospect.first_name = first_name
-                                prospect.last_name = last_name
+                                prospect.full_name = full_name
                                 if normalized_phone is not None:
                                     prospect.phone_number = normalized_phone
                                 prospect.save()
@@ -384,8 +380,7 @@ def prospect_bulk_upload(request):
                                 # Prospecto no existe: crear nuevo
                                 prospect = Prospect.objects.create(
                                     identification_number=identification_number,
-                                    first_name=first_name,
-                                    last_name=last_name,
+                                    full_name=full_name,
                                     phone_number=normalized_phone,
                                     created_by=request.user
                                 )
@@ -440,10 +435,10 @@ def download_csv_template(request):
     Vista para descargar la plantilla CSV de ejemplo.
     """
     # Crear contenido CSV de ejemplo
-    csv_content = 'identification_number;first_name;last_name;phone_number;origin\n'
-    csv_content += '1234567890;Juan;Pérez;3134000000;campaña_2024\n'
-    csv_content += '9876543210;María;García;3201234567;redes_sociales\n'
-    csv_content += '5555555555;Carlos;Rodríguez;;evento_publico\n'
+    csv_content = 'identification_number;full_name;phone_number;origin\n'
+    csv_content += '1234567890;Juan Pérez;3134000000;campaña_2024\n'
+    csv_content += '9876543210;María García;3201234567;redes_sociales\n'
+    csv_content += '5555555555;Carlos Rodríguez;;evento_publico\n'
     
     response = HttpResponse(csv_content, content_type='text/csv; charset=utf-8-sig')
     response['Content-Disposition'] = 'attachment; filename="plantilla_prospectos.csv"'

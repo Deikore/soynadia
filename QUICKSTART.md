@@ -74,8 +74,7 @@ curl -X POST http://localhost/api/prospects/ \
   -H "Content-Type: application/json" \
   -d '{
     "identification_number": "1234567890",
-    "first_name": "Juan",
-    "last_name": "Pérez",
+    "full_name": "Juan Pérez",
     "phone_number": "3001234567"
   }'
 ```

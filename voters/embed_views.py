@@ -31,24 +31,14 @@ class EmbedProspectForm(forms.Form):
             'autocomplete': 'off',
         }),
     )
-    first_name = forms.CharField(
-        max_length=100,
+    full_name = forms.CharField(
+        max_length=200,
         required=True,
-        label=_('Nombres'),
+        label=_('Nombre completo'),
         widget=forms.TextInput(attrs={
-            'placeholder': _('Nombres'),
+            'placeholder': _('Nombre completo'),
             'required': True,
-            'autocomplete': 'given-name',
-        }),
-    )
-    last_name = forms.CharField(
-        max_length=100,
-        required=True,
-        label=_('Apellidos'),
-        widget=forms.TextInput(attrs={
-            'placeholder': _('Apellidos'),
-            'required': True,
-            'autocomplete': 'family-name',
+            'autocomplete': 'name',
         }),
     )
     phone_number = forms.CharField(
@@ -82,17 +72,6 @@ class EmbedProspectForm(forms.Form):
             )
         return value
 
-    def clean_first_name(self):
-        value = (self.cleaned_data.get('first_name') or '').strip()
-        if not value:
-            raise forms.ValidationError(_('Este campo es obligatorio.'))
-        return value
-
-    def clean_last_name(self):
-        value = (self.cleaned_data.get('last_name') or '').strip()
-        if not value:
-            raise forms.ValidationError(_('Este campo es obligatorio.'))
-        return value
 
     def clean_phone_number(self):
         value = self.cleaned_data.get('phone_number')
@@ -148,8 +127,7 @@ def embed_prospect_form(request):
         )
         prospect = Prospect.objects.create(
             identification_number=form.cleaned_data['identification_number'],
-            first_name=form.cleaned_data['first_name'],
-            last_name=form.cleaned_data['last_name'],
+            full_name=form.cleaned_data['full_name'],
             phone_number=form.cleaned_data['phone_number'],
             accepted_terms=form.cleaned_data['accepted_terms'],
             authorize_info_sending=form.cleaned_data['authorize_info_sending'],

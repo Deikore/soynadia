@@ -36,7 +36,7 @@ def process_prospect(prospect_id):
     """
     try:
         prospect = Prospect.objects.get(pk=prospect_id)
-        logger.info(f"Procesando prospecto: {prospect.identification_number} - {prospect.first_name} {prospect.last_name}")
+        logger.info(f"Procesando prospecto: {prospect.identification_number} - {prospect.full_name}")
         
         # Obtener API key de 2Captcha desde variables de entorno
         # Configurar en el archivo .env: TWOCAPTCHA_API_KEY=tu-api-key-aqui

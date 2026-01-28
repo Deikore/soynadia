@@ -41,9 +41,9 @@ class ProspectAdmin(admin.ModelAdmin):
     """
     Admin para el modelo Prospect.
     """
-    list_display = ('identification_number', 'first_name', 'last_name', 'phone_number', 'polling_station_consulted', 'created_at', 'display_created_by')
+    list_display = ('identification_number', 'full_name', 'phone_number', 'polling_station_consulted', 'created_at', 'display_created_by')
     list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted')
-    search_fields = ('identification_number', 'first_name', 'last_name', 'phone_number')
+    search_fields = ('identification_number', 'full_name', 'phone_number')
     readonly_fields = (
         'created_at', 
         'updated_at', 
@@ -61,7 +61,7 @@ class ProspectAdmin(admin.ModelAdmin):
     filter_horizontal = ('origins',)
     fieldsets = (
         (_('Información del Prospecto'), {
-            'fields': ('identification_number', 'first_name', 'last_name', 'phone_number', 'origins')
+            'fields': ('identification_number', 'full_name', 'phone_number', 'origins')
         }),
         (_('Información Electoral'), {
             'fields': (

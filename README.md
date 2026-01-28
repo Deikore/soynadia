@@ -657,8 +657,7 @@ curl -X POST http://tu-dominio.com/api/prospects/ \
   -H "Content-Type: application/json" \
   -d '{
     "identification_number": "1234567890",
-    "first_name": "Juan",
-    "last_name": "Pérez",
+    "full_name": "Juan Pérez",
     "phone_number": "3001234567"
   }'
 ```
@@ -678,8 +677,7 @@ curl -X PUT http://tu-dominio.com/api/prospects/1/ \
   -H "Content-Type: application/json" \
   -d '{
     "identification_number": "1234567890",
-    "first_name": "Juan Carlos",
-    "last_name": "Pérez García",
+    "full_name": "Juan Carlos Pérez García",
     "phone_number": "3009876543"
   }'
 ```
@@ -701,8 +699,6 @@ curl -X DELETE http://tu-dominio.com/api/prospects/1/ \
   "data": {
     "id": 1,
     "identification_number": "1234567890",
-    "first_name": "Juan",
-    "last_name": "Pérez",
     "full_name": "Juan Pérez",
     "phone_number": "3001234567",
     "created_at": "2026-01-21T10:30:00Z",

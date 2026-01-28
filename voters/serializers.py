@@ -8,15 +8,12 @@ class ProspectSerializer(serializers.ModelSerializer):
     Serializer para el modelo Prospect.
     """
     created_by_email = serializers.EmailField(source='created_by.email', read_only=True)
-    full_name = serializers.CharField(source='get_full_name', read_only=True)
 
     class Meta:
         model = Prospect
         fields = [
             'id',
             'identification_number',
-            'first_name',
-            'last_name',
             'full_name',
             'phone_number',
             'department',
@@ -37,7 +34,6 @@ class ProspectSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'created_by_email',
-            'full_name',
             'department',
             'municipality',
             'polling_station',

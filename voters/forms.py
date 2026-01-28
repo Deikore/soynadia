@@ -11,19 +11,15 @@ class ProspectForm(forms.ModelForm):
     """
     class Meta:
         model = Prospect
-        fields = ['identification_number', 'first_name', 'last_name', 'phone_number']
+        fields = ['identification_number', 'full_name', 'phone_number']
         widgets = {
             'identification_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
                 'placeholder': 'Ej: 1234567890'
             }),
-            'first_name': forms.TextInput(attrs={
+            'full_name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'placeholder': 'Nombre'
-            }),
-            'last_name': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                'placeholder': 'Apellido'
+                'placeholder': 'Nombre completo'
             }),
             'phone_number': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
@@ -32,8 +28,7 @@ class ProspectForm(forms.ModelForm):
         }
         labels = {
             'identification_number': _('Número de Identificación'),
-            'first_name': _('Nombre'),
-            'last_name': _('Apellido'),
+            'full_name': _('Nombre Completo'),
             'phone_number': _('Teléfono (Opcional)'),
         }
     
@@ -103,7 +98,7 @@ class BulkUploadForm(forms.Form):
     """
     csv_file = forms.FileField(
         label=_('Archivo CSV'),
-        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number, first_name, last_name, phone_number, origin'),
+        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number, full_name, phone_number, origin'),
         widget=forms.FileInput(attrs={
             'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
             'accept': '.csv'

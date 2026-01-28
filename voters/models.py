@@ -48,8 +48,7 @@ class Prospect(models.Model):
         db_index=True,
         help_text=_('Número de identificación único del prospecto')
     )
-    first_name = models.CharField(_('nombre'), max_length=100)
-    last_name = models.CharField(_('apellido'), max_length=100)
+    full_name = models.CharField(_('nombre completo'), max_length=200)
     phone_number = models.CharField(_('teléfono'), max_length=20, blank=True, null=True)
     origins = models.ManyToManyField(
         OriginProspect,
@@ -106,7 +105,7 @@ class Prospect(models.Model):
 
     def get_full_name(self):
         """Retorna el nombre completo del prospecto."""
-        return f'{self.first_name} {self.last_name}'.strip()
+        return self.full_name
 
 
 class ApiKey(models.Model):
