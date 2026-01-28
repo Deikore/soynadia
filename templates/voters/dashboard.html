@@ -98,7 +98,11 @@
                     {% for prospect in recent_prospects %}
                     <tr class="hover:bg-red-50 transition-colors duration-150">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {{ prospect.identification_number }}
+                            {% if prospect.identification_number %}
+                                {{ prospect.identification_number }}
+                            {% else %}
+                                <span class="text-gray-400">-</span>
+                            {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ prospect.get_full_name }}
@@ -206,7 +210,13 @@
                 <div class="flex items-start justify-between mb-3">
                     <div class="flex-1">
                         <h3 class="text-lg font-semibold text-gray-900">{{ prospect.get_full_name }}</h3>
-                        <p class="text-sm text-gray-500 mt-1">ID: {{ prospect.identification_number }}</p>
+                        <p class="text-sm text-gray-500 mt-1">
+                            {% if prospect.identification_number %}
+                                ID: {{ prospect.identification_number }}
+                            {% else %}
+                                ID: Sin ID
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="flex items-center space-x-2 ml-2">
                         {% if prospect.polling_station_consulted %}

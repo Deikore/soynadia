@@ -194,7 +194,7 @@ def prospect_update(request, pk):
             # Obtener el identification_number anterior desde la base de datos antes de actualizar
             # Esto asegura que tenemos el valor real guardado, no el del formulario
             old_prospect = Prospect.objects.get(pk=pk)
-            old_id = old_prospect.identification_number
+            old_id = old_prospect.identification_number if old_prospect.identification_number else None
             # Guardar el formulario y obtener la instancia actualizada
             prospect = form.save()
             
@@ -285,14 +285,15 @@ def prospect_bulk_upload(request):
                 csv_reader = csv.DictReader(io.StringIO(content_str), delimiter=delimiter)
                 
                 # Validar encabezados requeridos
-                required_headers = ['identification_number', 'full_name', 'phone_number', 'origin']
+                required_headers = ['full_name', 'phone_number', 'origin']
+                optional_headers = ['identification_number']
                 if not csv_reader.fieldnames:
                     messages.error(request, _('El archivo CSV está vacío o no tiene encabezados válidos.'))
                     form = BulkUploadForm()
                     return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
                 
                 if not all(header in csv_reader.fieldnames for header in required_headers):
-                    messages.error(request, _('El archivo CSV debe contener los siguientes encabezados: identification_number, full_name, phone_number, origin'))
+                    messages.error(request, _('El archivo CSV debe contener los siguientes encabezados: full_name, phone_number, origin. El campo identification_number es opcional.'))
                     form = BulkUploadForm()
                     return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
                 
@@ -355,16 +356,35 @@ def prospect_bulk_upload(request):
                             )
                             
                             # Buscar si el prospecto ya existe
-                            try:
-                                prospect = Prospect.objects.get(identification_number=identification_number)
-                                # Prospecto existe: guardar identification_number anterior
-                                # Nota: En bulk upload, el identification_number no cambia porque se busca por ese campo,
-                                # pero guardamos old_id para verificar por si en el futuro se permite cambiar
-                                old_id = prospect.identification_number
-                                # Actualizar campos y agregar origin
+                            prospect = None
+                            old_id = None
+                            
+                            if identification_number:
+                                # Si hay identification_number, buscar por ese campo
+                                try:
+                                    prospect = Prospect.objects.get(identification_number=identification_number)
+                                    old_id = prospect.identification_number
+                                except Prospect.DoesNotExist:
+                                    pass
+                            elif normalized_phone:
+                                # Si no hay identification_number pero hay phone_number, buscar por phone_number
+                                try:
+                                    prospect = Prospect.objects.filter(
+                                        phone_number=normalized_phone,
+                                        identification_number__isnull=True
+                                    ).first()
+                                    if prospect:
+                                        old_id = prospect.identification_number
+                                except Exception:
+                                    pass
+                            
+                            if prospect:
+                                # Prospecto existe: actualizar campos y agregar origin
                                 prospect.full_name = full_name
                                 if normalized_phone is not None:
                                     prospect.phone_number = normalized_phone
+                                if identification_number:
+                                    prospect.identification_number = identification_number
                                 prospect.save()
                                 prospect.origins.add(origin)
                                 
@@ -376,7 +396,7 @@ def prospect_bulk_upload(request):
                                     # Si no cambió el ID o no disparó la tarea, verificar si debe consultar por otros campos
                                     trigger_polling_station_consult(prospect)
                                 results['updated'] += 1
-                            except Prospect.DoesNotExist:
+                            else:
                                 # Prospecto no existe: crear nuevo
                                 prospect = Prospect.objects.create(
                                     identification_number=identification_number,

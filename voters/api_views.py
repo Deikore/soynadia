@@ -103,7 +103,7 @@ class ProspectViewSet(viewsets.ModelViewSet):
         Guarda el identification_number anterior y verifica cambios después de actualizar.
         """
         instance = serializer.instance
-        old_id = instance.identification_number
+        old_id = instance.identification_number if instance.identification_number else None
         super().perform_update(serializer)
         
         # Verificar y asociar WhatsAppAccount si hay match

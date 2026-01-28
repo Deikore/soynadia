@@ -48,7 +48,13 @@ class ProspectSerializer(serializers.ModelSerializer):
     def validate_identification_number(self, value):
         """
         Validar que el número de identificación sea único.
+        Permite None o cadena vacía (campo opcional).
         """
+        # Si el valor es None o cadena vacía, está permitido
+        if not value or not value.strip():
+            return None
+        
+        value = value.strip()
         instance = self.instance
         if instance and instance.identification_number == value:
             # Si estamos actualizando y el número no cambió, está bien

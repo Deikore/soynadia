@@ -58,9 +58,9 @@
                 <h3 class="text-sm font-semibold text-blue-900 mb-2">Formato del CSV:</h3>
                 <ul class="text-sm text-blue-800 space-y-1 list-disc list-inside">
                     <li>Delimitador: punto y coma (;) o coma (,)</li>
-                    <li>Encabezados requeridos: <code class="bg-blue-100 px-1 rounded">identification_number</code>, <code class="bg-blue-100 px-1 rounded">full_name</code>, <code class="bg-blue-100 px-1 rounded">phone_number</code>, <code class="bg-blue-100 px-1 rounded">origin</code></li>
+                    <li>Encabezados requeridos: <code class="bg-blue-100 px-1 rounded">full_name</code>, <code class="bg-blue-100 px-1 rounded">phone_number</code>, <code class="bg-blue-100 px-1 rounded">origin</code>. <code class="bg-blue-100 px-1 rounded">identification_number</code> es opcional</li>
                     <li><code class="bg-blue-100 px-1 rounded">phone_number</code> es opcional, pero si se proporciona debe ser un número colombiano válido</li>
-                    <li>Si un prospecto ya existe (mismo identification_number), se actualizarán los campos y se agregará el origin</li>
+                    <li>Si un prospecto ya existe (mismo <code class="bg-blue-100 px-1 rounded">identification_number</code> o mismo <code class="bg-blue-100 px-1 rounded">phone_number</code> si no hay ID), se actualizarán los campos y se agregará el origin</li>
                 </ul>
             </div>
 

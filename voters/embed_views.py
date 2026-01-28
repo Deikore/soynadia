@@ -23,11 +23,10 @@ class EmbedProspectForm(forms.Form):
 
     identification_number = forms.CharField(
         max_length=20,
-        required=True,
-        label=_('Número de identificación'),
+        required=False,
+        label=_('Número de identificación (Opcional)'),
         widget=forms.TextInput(attrs={
             'placeholder': 'Ej: 1234567890',
-            'required': True,
             'autocomplete': 'off',
         }),
     )
@@ -65,7 +64,7 @@ class EmbedProspectForm(forms.Form):
     def clean_identification_number(self):
         value = (self.cleaned_data.get('identification_number') or '').strip()
         if not value:
-            raise forms.ValidationError(_('Este campo es obligatorio.'))
+            return None  # Campo opcional, retornar None si está vacío
         if Prospect.objects.filter(identification_number=value).exists():
             raise forms.ValidationError(
                 _('Ya te inscribiste a nuestra campaña, muchas gracias.')

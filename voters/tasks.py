@@ -36,6 +36,12 @@ def process_prospect(prospect_id):
     """
     try:
         prospect = Prospect.objects.get(pk=prospect_id)
+        
+        # Verificar si tiene número de identificación
+        if not prospect.identification_number:
+            logger.info(f"Prospecto {prospect.id} sin número de identificación, omitiendo consulta de lugar de votación")
+            return "Prospecto sin número de identificación, no se puede consultar lugar de votación"
+        
         logger.info(f"Procesando prospecto: {prospect.identification_number} - {prospect.full_name}")
         
         # Obtener API key de 2Captcha desde variables de entorno

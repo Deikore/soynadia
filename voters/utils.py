@@ -90,7 +90,12 @@ def check_and_trigger_on_id_change(prospect, old_identification_number):
     
     # Comparar el identification_number actual con el anterior
     current_id = prospect.identification_number
+    # Si ambos son None o ambos son iguales, no hay cambio
     if current_id == old_identification_number:
+        return False
+    
+    # Si alguno es None, no resetear (solo resetear cuando ambos tienen valor y son diferentes)
+    if not current_id or not old_identification_number:
         return False
     
     # El número cambió, resetear todos los campos de información electoral
@@ -134,7 +139,7 @@ def check_and_trigger_on_id_change(prospect, old_identification_number):
 def trigger_polling_station_consult(prospect):
     """
     Verifica si debe disparar la consulta de lugar de votación para un prospecto.
-    Solo dispara si tiene origen habilitado y aún no se ha consultado.
+    Solo dispara si tiene origen habilitado, aún no se ha consultado y tiene identification_number.
     NO resetea campos de información electoral (solo se resetean cuando cambia el ID).
     
     Args:
@@ -144,6 +149,10 @@ def trigger_polling_station_consult(prospect):
         bool: True si se disparó la tarea, False en caso contrario
     """
     if not prospect or not prospect.pk:
+        return False
+    
+    # Verificar si tiene número de identificación
+    if not prospect.identification_number:
         return False
     
     # Recargar el prospecto con las relaciones ManyToMany para asegurar que estén disponibles

@@ -46,7 +46,9 @@ class Prospect(models.Model):
         max_length=20,
         unique=True,
         db_index=True,
-        help_text=_('Número de identificación único del prospecto')
+        null=True,
+        blank=True,
+        help_text=_('Número de identificación único del prospecto (opcional)')
     )
     full_name = models.CharField(_('nombre completo'), max_length=200)
     phone_number = models.CharField(_('teléfono'), max_length=20, blank=True, null=True)
@@ -101,7 +103,8 @@ class Prospect(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.identification_number} - {self.get_full_name()}'
+        id_str = self.identification_number if self.identification_number else "Sin ID"
+        return f'{id_str} - {self.get_full_name()}'
 
     def get_full_name(self):
         """Retorna el nombre completo del prospecto."""

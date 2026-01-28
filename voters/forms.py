@@ -27,7 +27,7 @@ class ProspectForm(forms.ModelForm):
             }),
         }
         labels = {
-            'identification_number': _('Número de Identificación'),
+            'identification_number': _('Número de Identificación (Opcional)'),
             'full_name': _('Nombre Completo'),
             'phone_number': _('Teléfono (Opcional)'),
         }
@@ -98,7 +98,7 @@ class BulkUploadForm(forms.Form):
     """
     csv_file = forms.FileField(
         label=_('Archivo CSV'),
-        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number, full_name, phone_number, origin'),
+        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number (opcional), full_name, phone_number, origin'),
         widget=forms.FileInput(attrs={
             'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
             'accept': '.csv'
