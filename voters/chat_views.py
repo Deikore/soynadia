@@ -86,7 +86,7 @@ def chat_conversation_detail(request, account_id):
 
     context = {
         'account': account,
-        'messages': msg_list,
+        'chat_messages': msg_list,
         'display_name': display_name,
         'can_send': can_send,
         'form_error': form_error,

@@ -41,7 +41,7 @@
 
     <!-- Mensajes -->
     <div class="bg-[#e5ddd5] flex-1 overflow-y-auto px-4 py-6 border-x border-gray-200" id="messages-container">
-        {% for msg in messages %}
+        {% for msg in chat_messages %}
         <div class="mb-3 flex {% if msg.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %}">
             <div class="max-w-[70%] sm:max-w-2xl {% if msg.direction == 'outbound' %}bg-[#dcf8c6] border border-green-200{% else %}bg-white border border-gray-200{% endif %} rounded-2xl px-4 py-2.5 shadow-sm {% if msg.direction == 'outbound' %}rounded-br-md{% else %}rounded-bl-md{% endif %}">
                 {% if msg.event_type != 'message' %}
