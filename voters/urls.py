@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import webhook_views
+from . import chat_views
 
 app_name = 'voters'
 
@@ -15,4 +16,6 @@ urlpatterns = [
     path('prospects/<int:pk>/edit/', views.prospect_update, name='prospect_update'),
     path('prospects/<int:pk>/delete/', views.prospect_delete, name='prospect_delete'),
     path('webhooks/twilio/whatsapp/', webhook_views.twilio_whatsapp_webhook, name='twilio_whatsapp_webhook'),
+    path('chat/', chat_views.chat_conversation_list, name='chat_list'),
+    path('chat/<int:account_id>/', chat_views.chat_conversation_detail, name='chat_conversation'),
 ]

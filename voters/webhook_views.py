@@ -229,7 +229,7 @@ def twilio_whatsapp_webhook(request):
                     account.save(update_fields=['optin_whatsapp', 'optout_whatsapp', 'updated_at'])
             
             # Guardar mensaje en WhatsAppMessage
-            message, created = WhatsAppMessage.objects.update_or_create(
+            message_obj, created = WhatsAppMessage.objects.update_or_create(
                 message_sid=message_sid,
                 defaults={
                     'account_sid': account_sid,
@@ -242,6 +242,8 @@ def twilio_whatsapp_webhook(request):
                     'event_type': event_type,
                     'phone_number_normalized': phone_number_normalized,
                     'raw_data': raw_data,
+                    'direction': 'inbound',
+                    'whatsapp_account': account,
                 }
             )
 

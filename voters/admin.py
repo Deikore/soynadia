@@ -229,8 +229,8 @@ class WhatsAppMessageAdmin(admin.ModelAdmin):
     """
     Admin para el modelo WhatsAppMessage.
     """
-    list_display = ('message_sid', 'from_number', 'phone_number_normalized', 'event_type', 'received_at')
-    list_filter = ('event_type', 'received_at')
+    list_display = ('message_sid', 'direction', 'from_number', 'phone_number_normalized', 'event_type', 'received_at')
+    list_filter = ('direction', 'event_type', 'received_at')
     search_fields = ('from_number', 'phone_number_normalized', 'profile_name', 'message_sid', 'body')
     readonly_fields = (
         'message_sid',
@@ -245,10 +245,14 @@ class WhatsAppMessageAdmin(admin.ModelAdmin):
         'phone_number_normalized',
         'received_at',
         'raw_data',
+        'direction',
+        'whatsapp_account',
     )
     fieldsets = (
         (_('Información del Mensaje'), {
             'fields': (
+                'direction',
+                'whatsapp_account',
                 'message_sid',
                 'account_sid',
                 'messaging_service_sid',

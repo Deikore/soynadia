@@ -189,8 +189,12 @@ class WhatsAppAccount(models.Model):
 
 class WhatsAppMessage(models.Model):
     """
-    Modelo para almacenar todos los mensajes de WhatsApp recibidos desde Twilio.
+    Modelo para almacenar todos los mensajes de WhatsApp (entrantes y salientes) desde Twilio.
     """
+    DIRECTION_CHOICES = [
+        ('inbound', 'Entrante'),
+        ('outbound', 'Saliente'),
+    ]
     EVENT_TYPE_CHOICES = [
         ('opt-in', 'Opt-in'),
         ('opt-out', 'Opt-out'),
@@ -198,6 +202,23 @@ class WhatsAppMessage(models.Model):
         ('status', 'Estado'),
     ]
     
+    direction = models.CharField(
+        _('dirección'),
+        max_length=10,
+        choices=DIRECTION_CHOICES,
+        default='inbound',
+        db_index=True,
+        help_text=_('Entrante (del contacto) o saliente (enviado por nosotros)')
+    )
+    whatsapp_account = models.ForeignKey(
+        WhatsAppAccount,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='messages',
+        verbose_name=_('cuenta WhatsApp'),
+        help_text=_('Cuenta asociada para agrupación de conversaciones')
+    )
     message_sid = models.CharField(
         _('Message SID'),
         max_length=34,
