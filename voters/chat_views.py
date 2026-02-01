@@ -3,7 +3,6 @@ Vistas para la sección de chat de WhatsApp.
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
 from django.db.models import Q, Prefetch
 
 from .models import WhatsAppAccount, WhatsAppMessage
@@ -66,29 +65,30 @@ def chat_conversation_detail(request, account_id):
     )
     can_send = account.optin_whatsapp
 
+    form_error = None
     # Procesar envío de mensaje
     if request.method == 'POST' and can_send:
         body = (request.POST.get('body') or '').strip()
         if body:
             if len(body) > 4000:
-                messages.error(request, 'El mensaje no puede exceder 4000 caracteres.')
+                form_error = 'El mensaje no puede exceder 4000 caracteres.'
             else:
                 success, result = send_whatsapp_text_message(
                     account.phone_number,
                     body,
                 )
                 if success:
-                    messages.success(request, 'Mensaje enviado correctamente.')
                     return redirect('voters:chat_conversation', account_id=account_id)
                 else:
-                    messages.error(request, f'Error al enviar: {result}')
+                    form_error = f'Error al enviar: {result}'
         else:
-            messages.error(request, 'El mensaje no puede estar vacío.')
+            form_error = 'El mensaje no puede estar vacío.'
 
     context = {
         'account': account,
         'messages': msg_list,
         'display_name': display_name,
         'can_send': can_send,
+        'form_error': form_error,
     }
     return render(request, 'voters/chat_conversation.html', context)

@@ -8,6 +8,7 @@ from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction
+from django.utils import timezone
 from twilio.request_validator import RequestValidator
 from twilio.rest import Client
 from .models import WhatsAppMessage, WhatsAppAccount, Prospect
@@ -69,14 +70,15 @@ def determine_event_type(body):
     return 'message'
 
 
-def send_whatsapp_template(phone_number_normalized, template_sid):
+def send_whatsapp_template(phone_number_normalized, template_sid, template_label=None):
     """
-    Envía una plantilla de Twilio a un número de teléfono normalizado.
-    
+    Envía una plantilla de Twilio a un número de teléfono normalizado y persiste el envío en WhatsAppMessage.
+
     Args:
         phone_number_normalized: Número nacional (sin whatsapp:, sin prefijo país)
         template_sid: SID de la plantilla de Twilio
-    
+        template_label: Etiqueta descriptiva para guardar en BD (ej. "Plantilla opt-in enviada")
+
     Returns:
         bool: True si se envió correctamente, False en caso contrario
     """
@@ -84,21 +86,18 @@ def send_whatsapp_template(phone_number_normalized, template_sid):
         account_sid = os.getenv('TWILIO_ACCOUNT_SID')
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
         whatsapp_number = os.getenv('TWILIO_WHATSAPP_NUMBER')
-        
+
         if not account_sid or not auth_token or not whatsapp_number:
-            logger.error("[Twilio] Faltan variables de entorno para enviar plantilla: ACCOUNT_SID=%s, AUTH_TOKEN=%s, WHATSAPP_NUMBER=%s", 
+            logger.error("[Twilio] Faltan variables de entorno para enviar plantilla: ACCOUNT_SID=%s, AUTH_TOKEN=%s, WHATSAPP_NUMBER=%s",
                         bool(account_sid), bool(auth_token), bool(whatsapp_number))
             return False
-        
+
         # Construir número en formato whatsapp:+cc...
-        # Necesitamos el código de país. Asumimos Colombia (+57) si no está claro
-        # En producción, deberías detectar el país del número normalizado
         if not phone_number_normalized.startswith('+'):
-            # Asumir Colombia si no tiene prefijo
             to_number = f'whatsapp:+57{phone_number_normalized}'
         else:
             to_number = f'whatsapp:{phone_number_normalized}'
-        
+
         client = Client(account_sid, auth_token)
         message = client.messages.create(
             content_sid=template_sid,
@@ -106,6 +105,25 @@ def send_whatsapp_template(phone_number_normalized, template_sid):
             to=to_number
         )
         logger.info("[Twilio] Plantilla enviada: SID=%s, to=%s, template=%s", message.sid, to_number, template_sid)
+
+        # Persistir plantilla enviada en WhatsAppMessage
+        body_label = template_label or f"[Plantilla {template_sid[:8]}... enviada]"
+        whatsapp_account = WhatsAppAccount.objects.filter(
+            phone_number=phone_number_normalized
+        ).first()
+        WhatsAppMessage.objects.create(
+            message_sid=message.sid,
+            account_sid=message.account_sid or account_sid,
+            messaging_service_sid=message.messaging_service_sid,
+            from_number=whatsapp_number,
+            to_number=to_number,
+            body=body_label,
+            event_type='message',
+            phone_number_normalized=phone_number_normalized,
+            direction='outbound',
+            whatsapp_account=whatsapp_account,
+            received_at=timezone.now(),
+        )
         return True
     except Exception as e:
         logger.error("[Twilio] Error al enviar plantilla a %s: %s", phone_number_normalized, e, exc_info=True)
@@ -212,7 +230,7 @@ def twilio_whatsapp_webhook(request):
             # Si es primera vez y no es un quick reply, enviar plantilla de opt-in
             if is_first_time and not is_quick_reply and phone_number_normalized:
                 optin_template_sid = os.getenv('TWILIO_OPTIN_TEMPLATE_SID', 'HXc3259a2a93ad765cb532b2919bc2b1dd')
-                send_whatsapp_template(phone_number_normalized, optin_template_sid)
+                send_whatsapp_template(phone_number_normalized, optin_template_sid, template_label='[Plantilla opt-in enviada]')
             
             # Procesar respuesta de quick reply
             if is_quick_reply and account:
@@ -222,7 +240,7 @@ def twilio_whatsapp_webhook(request):
                     account.save(update_fields=['optin_whatsapp', 'optout_whatsapp', 'updated_at'])
                     # Enviar segunda plantilla de confirmación
                     confirmed_template_sid = os.getenv('TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID', 'HXf790520f9af4858389bec0ac00cf0b87')
-                    send_whatsapp_template(phone_number_normalized, confirmed_template_sid)
+                    send_whatsapp_template(phone_number_normalized, confirmed_template_sid, template_label='[Plantilla de bienvenida enviada]')
                 elif is_no:
                     account.optin_whatsapp = False
                     account.optout_whatsapp = True
