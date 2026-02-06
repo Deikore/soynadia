@@ -179,19 +179,9 @@ def send_sms_campaign(provider_id, body, department_values=None, municipality_va
         identification_numbers=identification_numbers,
     )
     prospects_with_phone = get_prospects_with_valid_phone(qs)
+    phone_list = [phone for _, phone in prospects_with_phone]
 
-    sent = 0
-    failed = 0
-    errors = []
-    for prospect, phone_normalized in prospects_with_phone:
-        success, result = provider.send_sms(phone_normalized, body)
-        if success:
-            sent += 1
-            logger.info("[SMS] Enviado a %s (prospect %s)", phone_normalized, prospect.pk)
-        else:
-            failed += 1
-            errors.append(f"{phone_normalized}: {result}")
-            logger.warning("[SMS] Fallo en %s: %s", phone_normalized, result)
+    sent, failed, errors = provider.send_sms_batch(phone_list, body)
 
     logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", sent, failed)
     return {'sent': sent, 'failed': failed, 'errors': errors}

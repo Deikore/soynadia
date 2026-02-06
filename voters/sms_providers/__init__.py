@@ -4,10 +4,12 @@ cambiar de proveedor (Twilio hoy, otros en el futuro) sin tocar la UI.
 """
 from .base import BaseSMSProvider
 from .twilio_provider import TwilioSMSProvider
+from .onurix_provider import OnurixSMSProvider
 
 # Registry: provider_id -> (display_label, provider_class)
 SMS_PROVIDER_REGISTRY = {
     'twilio': ('Twilio', TwilioSMSProvider),
+    'onurix': ('Onurix', OnurixSMSProvider),
 }
 
 
