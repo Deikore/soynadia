@@ -189,6 +189,7 @@ def send_sms_campaign(provider_id, body, department_values=None, municipality_va
             prospect=prospect,
             channel=ProspectCommunication.CHANNEL_SMS,
             content=body,
+            provider_id=provider_id,
         )
         for prospect, _ in prospects_with_phone
     ]

@@ -137,11 +137,26 @@ class ProspectCommunication(models.Model):
     )
     content = models.TextField(_('contenido'), help_text=_('Texto del mensaje enviado'))
     sent_at = models.DateTimeField(_('fecha de envío'), auto_now_add=True)
+    provider_id = models.CharField(
+        _('proveedor'),
+        max_length=50,
+        blank=True,
+        default='',
+        help_text=_('Identificador del proveedor usado (ej. twilio, onurix)'),
+    )
 
     class Meta:
         verbose_name = _('comunicación enviada')
         verbose_name_plural = _('comunicaciones enviadas')
         ordering = ['-sent_at']
+
+    def get_provider_display(self):
+        """Devuelve la etiqueta legible del proveedor (Twilio, Onurix, etc.) o '—' si no hay."""
+        if not self.provider_id or not self.provider_id.strip():
+            return '—'
+        from .sms_providers import get_available_providers
+        labels = dict(get_available_providers())
+        return labels.get(self.provider_id, self.provider_id)
 
     def __str__(self):
         return f'{self.get_channel_display()} a {self.prospect} ({self.sent_at})'

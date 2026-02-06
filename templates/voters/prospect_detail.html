@@ -223,6 +223,9 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if comm.channel == 'sms' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">
                                 {{ comm.get_channel_display }}
                             </span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                {{ comm.get_provider_display }}
+                            </span>
                         </div>
                         <p class="text-gray-900 text-sm whitespace-pre-wrap">{{ comm.content }}</p>
                     </li>
