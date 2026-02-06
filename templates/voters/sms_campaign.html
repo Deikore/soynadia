@@ -83,29 +83,29 @@
                     {% if message_count == 0 %}disabled{% endif %}>
                     Enviar SMS
                 </button>
-                <div id="bulk-export-wrap" class="flex items-center gap-2" style="display: none;">
-                    <form id="bulk-export-form" method="post" action="" class="inline">
-                        {% csrf_token %}
-                        {% for v in department_values %}
-                        <input type="hidden" name="department" value="{{ v }}">
-                        {% endfor %}
-                        {% for v in municipality_values %}
-                        <input type="hidden" name="municipality" value="{{ v }}">
-                        {% endfor %}
-                        {% for id in origin_ids %}
-                        <input type="hidden" name="origin" value="{{ id }}">
-                        {% endfor %}
-                        {% for v in identification_values %}
-                        <input type="hidden" name="identification_number" value="{{ v }}">
-                        {% endfor %}
-                        <input type="hidden" name="message_body" id="bulk_export_message_body" value="">
-                        <button type="submit" class="border-2 border-red-600 text-red-600 hover:bg-red-50 px-6 py-2 rounded-lg font-medium transition-colors">
-                            Descargar archivo masivo
-                        </button>
-                    </form>
-                </div>
             </div>
         </form>
+        <div id="bulk-export-wrap" class="flex items-center gap-2 mt-4" style="display: none;">
+            <form id="bulk-export-form" method="post" action="" class="inline">
+                {% csrf_token %}
+                {% for v in department_values %}
+                <input type="hidden" name="department" value="{{ v }}">
+                {% endfor %}
+                {% for v in municipality_values %}
+                <input type="hidden" name="municipality" value="{{ v }}">
+                {% endfor %}
+                {% for id in origin_ids %}
+                <input type="hidden" name="origin" value="{{ id }}">
+                {% endfor %}
+                {% for v in identification_values %}
+                <input type="hidden" name="identification_number" value="{{ v }}">
+                {% endfor %}
+                <input type="hidden" name="message_body" id="bulk_export_message_body" value="">
+                <button type="submit" class="border-2 border-red-600 text-red-600 hover:bg-red-50 px-6 py-2 rounded-lg font-medium transition-colors">
+                    Descargar archivo masivo
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- Lista de prospectos -->
