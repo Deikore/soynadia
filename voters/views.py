@@ -5,7 +5,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, Http404
 from django.db import transaction
 import csv
 import io
@@ -23,7 +23,7 @@ from .utils import (
     get_prospects_with_valid_phone,
 )
 from .tasks import process_prospect
-from .sms_providers import get_provider, get_available_providers
+from .sms_providers import get_provider, get_available_providers, get_provider_ids_with_bulk_export
 
 
 @login_required
@@ -494,6 +494,71 @@ def download_csv_template(request):
 
 @login_required
 @permission_required('voters.can_view_sms', raise_exception=True)
+def download_sms_bulk_export(request, provider_id):
+    """
+    Genera y devuelve un Excel con teléfonos (filtros aplicados) y el mensaje del textarea.
+    Una fila por prospecto con teléfono válido; columnas Telefonos y Mensaje.
+    Solo para proveedores con bulk_export_slug (p. ej. Onurix).
+    """
+    from openpyxl import Workbook
+    from io import BytesIO
+
+    if provider_id not in get_provider_ids_with_bulk_export():
+        raise Http404('Proveedor sin descarga masiva')
+
+    if request.method == 'POST':
+        data = request.POST
+    else:
+        data = request.GET
+
+    department_values = data.getlist('department')
+    municipality_values = data.getlist('municipality')
+    origin_ids = [int(x) for x in data.getlist('origin') if x.isdigit()]
+    identification_values = data.getlist('identification_number')
+    message_body = (data.get('message_body') or '').strip()
+
+    qs = get_sms_prospects_queryset(
+        department_values=department_values or None,
+        municipality_values=municipality_values or None,
+        origin_ids=origin_ids or None,
+        identification_numbers=identification_values or None,
+    )
+    prospects_with_phone = get_prospects_with_valid_phone(qs)
+
+    # Formatear teléfono según proveedor (Onurix: 57 + 10 dígitos)
+    if provider_id == 'onurix':
+        from .sms_providers.onurix_provider import _format_phone as format_phone_onurix
+        def format_phone(normalized):
+            return format_phone_onurix(normalized) or normalized
+    else:
+        def format_phone(normalized):
+            return normalized
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'SMS masivo'
+    ws.append(['Telefonos', 'Mensaje'])
+
+    for _prospect, phone_normalized in prospects_with_phone:
+        phone_export = format_phone(phone_normalized)
+        if phone_export:
+            ws.append([phone_export, message_body])
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f'sms_masivo_{provider_id}.xlsx'
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+@permission_required('voters.can_view_sms', raise_exception=True)
 def sms_campaign(request):
     """
     Vista principal de la campaña SMS: filtros (departamento, municipio, origen),
@@ -569,6 +634,7 @@ def sms_campaign(request):
         'prospects': page_obj,
         'message_count': message_count,
         'sms_providers': get_available_providers(),
+        'providers_with_bulk_export': get_provider_ids_with_bulk_export(),
         'department_values': department_values,
         'municipality_values': municipality_values,
         'origin_ids': origin_ids,

@@ -19,4 +19,5 @@ urlpatterns = [
     path('chat/', chat_views.chat_conversation_list, name='chat_list'),
     path('chat/<int:account_id>/', chat_views.chat_conversation_detail, name='chat_conversation'),
     path('sms/', views.sms_campaign, name='sms_campaign'),
+    path('sms/bulk-export/<str:provider_id>/', views.download_sms_bulk_export, name='download_sms_bulk_export'),
 ]
