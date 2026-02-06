@@ -210,6 +210,28 @@
             </dl>
         </div>
         {% endif %}
+
+        <!-- Comunicaciones enviadas -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Comunicaciones enviadas</h3>
+            {% if prospect.sent_communications.all %}
+                <ul class="space-y-4">
+                    {% for comm in prospect.sent_communications.all %}
+                    <li class="border-l-4 border-red-200 pl-4 py-1">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                            <span class="text-sm font-medium text-gray-500">{{ comm.sent_at|date:"d/m/Y H:i" }}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if comm.channel == 'sms' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ comm.get_channel_display }}
+                            </span>
+                        </div>
+                        <p class="text-gray-900 text-sm whitespace-pre-wrap">{{ comm.content }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-gray-500 text-sm">Aún no se han enviado comunicaciones a este prospecto.</p>
+            {% endif %}
+        </div>
         </div>
 
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex space-x-3">

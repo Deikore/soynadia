@@ -113,6 +113,40 @@ class Prospect(models.Model):
         return self.full_name
 
 
+class ProspectCommunication(models.Model):
+    """
+    Registro de comunicaciones enviadas a un prospecto (SMS, WhatsApp, etc.).
+    """
+    CHANNEL_SMS = 'sms'
+    CHANNEL_WHATSAPP = 'whatsapp'
+    CHANNEL_CHOICES = [
+        (CHANNEL_SMS, _('SMS')),
+        (CHANNEL_WHATSAPP, _('WhatsApp')),
+    ]
+
+    prospect = models.ForeignKey(
+        Prospect,
+        on_delete=models.CASCADE,
+        related_name='sent_communications',
+        verbose_name=_('prospecto'),
+    )
+    channel = models.CharField(
+        _('canal'),
+        max_length=20,
+        choices=CHANNEL_CHOICES,
+    )
+    content = models.TextField(_('contenido'), help_text=_('Texto del mensaje enviado'))
+    sent_at = models.DateTimeField(_('fecha de envío'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('comunicación enviada')
+        verbose_name_plural = _('comunicaciones enviadas')
+        ordering = ['-sent_at']
+
+    def __str__(self):
+        return f'{self.get_channel_display()} a {self.prospect} ({self.sent_at})'
+
+
 class ApiKey(models.Model):
     """
     Modelo para almacenar API keys para autenticación de la API REST.

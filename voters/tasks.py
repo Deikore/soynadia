@@ -183,5 +183,17 @@ def send_sms_campaign(provider_id, body, department_values=None, municipality_va
 
     sent, failed, errors = provider.send_sms_batch(phone_list, body)
 
+    from .models import ProspectCommunication
+    communications = [
+        ProspectCommunication(
+            prospect=prospect,
+            channel=ProspectCommunication.CHANNEL_SMS,
+            content=body,
+        )
+        for prospect, _ in prospects_with_phone
+    ]
+    if communications:
+        ProspectCommunication.objects.bulk_create(communications)
+
     logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", sent, failed)
     return {'sent': sent, 'failed': failed, 'errors': errors}
