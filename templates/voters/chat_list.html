@@ -55,6 +55,25 @@
             </a>
             {% endfor %}
         </div>
+        {% if page_obj.has_other_pages %}
+        <div class="px-4 py-3 border-t border-gray-200 flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm text-gray-600">
+                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </p>
+            <nav class="flex gap-2">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Anterior
+                </a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Siguiente
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+        {% endif %}
         {% else %}
         <div class="px-6 py-12 text-center text-gray-500">
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

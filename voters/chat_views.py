@@ -3,6 +3,7 @@ Vistas para la sección de chat de WhatsApp.
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Q, Prefetch
 from django.http import JsonResponse
 
@@ -25,9 +26,13 @@ def chat_conversation_list(request):
         )
     ).order_by('-updated_at')
 
-    # Construir lista con último mensaje para cada cuenta
+    paginator = Paginator(accounts, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Construir lista con último mensaje para cada cuenta de la página actual
     conversations = []
-    for account in accounts:
+    for account in page_obj.object_list:
         last_msg = account.messages.first()
         display_name = (
             account.prospect.get_full_name()
@@ -42,6 +47,7 @@ def chat_conversation_list(request):
 
     context = {
         'conversations': conversations,
+        'page_obj': page_obj,
     }
     return render(request, 'voters/chat_list.html', context)
 

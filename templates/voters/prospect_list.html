@@ -12,9 +12,15 @@
     <!-- Search Form -->
     <div class="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
         <form method="get" class="space-y-4">
-            <div>
-                {{ search_form.identification_number.label_tag }}
-                {{ search_form.identification_number }}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    {{ search_form.identification_number.label_tag }}
+                    {{ search_form.identification_number }}
+                </div>
+                <div>
+                    {{ search_form.full_name.label_tag }}
+                    {{ search_form.full_name }}
+                </div>
             </div>
             <div class="flex flex-col sm:flex-row gap-3">
                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto">
@@ -277,12 +283,12 @@
         <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
             <div class="flex-1 flex justify-between sm:hidden">
                 {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Anterior
                 </a>
                 {% endif %}
                 {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Siguiente
                 </a>
                 {% endif %}
@@ -298,7 +304,7 @@
                 <div>
                     <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                         {% if page_obj.has_previous %}
-                        <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             Anterior
                         </a>
                         {% endif %}
@@ -308,7 +314,7 @@
                         </span>
                         
                         {% if page_obj.has_next %}
-                        <a href="?page={{ page_obj.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             Siguiente
                         </a>
                         {% endif %}

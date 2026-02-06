@@ -68,15 +68,24 @@ def prospect_list(request):
     # Filtrar por búsqueda si se proporciona
     if search_form.is_valid():
         identification_number = search_form.cleaned_data.get('identification_number')
+        full_name = (search_form.cleaned_data.get('full_name') or '').strip()
         if identification_number:
             prospects = prospects.filter(
                 Q(identification_number__icontains=identification_number)
             )
+        if full_name:
+            prospects = prospects.filter(full_name__icontains=full_name)
     
     # Paginación
     paginator = Paginator(prospects, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+    
+    # Query string sin 'page' para enlaces de paginación
+    get_copy = request.GET.copy()
+    if 'page' in get_copy:
+        get_copy.pop('page')
+    query_string = get_copy.urlencode()
     
     # Verificar si el usuario puede eliminar prospectos
     can_delete = (
@@ -98,6 +107,7 @@ def prospect_list(request):
         'prospects': page_obj,
         'can_delete_prospects': can_delete,
         'can_edit_prospects': can_edit,
+        'query_string': query_string,
     }
     return render(request, 'voters/prospect_list.html', context)
 

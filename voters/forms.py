@@ -79,7 +79,7 @@ class ProspectForm(forms.ModelForm):
 
 class ProspectSearchForm(forms.Form):
     """
-    Formulario para buscar prospectos por número de identificación.
+    Formulario para buscar prospectos por número de identificación y/o nombre.
     """
     identification_number = forms.CharField(
         label=_('Buscar por Número de Identificación'),
@@ -88,6 +88,14 @@ class ProspectSearchForm(forms.Form):
             'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
             'placeholder': 'Ingrese el número de identificación...',
             'autofocus': True
+        })
+    )
+    full_name = forms.CharField(
+        label=_('Buscar por nombre'),
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+            'placeholder': _('Nombre completo o parte del nombre...'),
         })
     )
 
