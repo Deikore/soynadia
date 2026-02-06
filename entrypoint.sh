@@ -72,6 +72,24 @@ if created:
     print('Group "Puede Editar Prospectos" created with permission')
 else:
     print('Group "Puede Editar Prospectos" already exists')
+
+# Crear grupo "Puede Ver Chat" y asignar permiso
+group, created = Group.objects.get_or_create(name='Puede Ver Chat')
+if created:
+    permission = Permission.objects.get(codename='can_view_chat', content_type__app_label='voters')
+    group.permissions.add(permission)
+    print('Group "Puede Ver Chat" created with permission')
+else:
+    print('Group "Puede Ver Chat" already exists')
+
+# Crear grupo "Puede Ver SMS" y asignar permiso
+group, created = Group.objects.get_or_create(name='Puede Ver SMS')
+if created:
+    permission = Permission.objects.get(codename='can_view_sms', content_type__app_label='voters')
+    group.permissions.add(permission)
+    print('Group "Puede Ver SMS" created with permission')
+else:
+    print('Group "Puede Ver SMS" already exists')
 END
 
 echo "Starting application with Supervisor..."

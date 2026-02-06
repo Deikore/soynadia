@@ -493,6 +493,7 @@ def download_csv_template(request):
 
 
 @login_required
+@permission_required('voters.can_view_sms', raise_exception=True)
 def sms_campaign(request):
     """
     Vista principal de la campaña SMS: filtros (departamento, municipio, origen),

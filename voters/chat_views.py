@@ -2,7 +2,7 @@
 Vistas para la sección de chat de WhatsApp.
 """
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Prefetch
 from django.http import JsonResponse
@@ -12,6 +12,7 @@ from .whatsapp_service import send_whatsapp_text_message
 
 
 @login_required
+@permission_required('voters.can_view_chat', raise_exception=True)
 def chat_conversation_list(request):
     """
     Lista de conversaciones agrupadas por cuentas WhatsApp.
@@ -53,6 +54,7 @@ def chat_conversation_list(request):
 
 
 @login_required
+@permission_required('voters.can_view_chat', raise_exception=True)
 def chat_conversation_detail(request, account_id):
     """
     Detalle de una conversación con un número WhatsApp.

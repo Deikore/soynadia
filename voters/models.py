@@ -100,6 +100,8 @@ class Prospect(models.Model):
         permissions = [
             ('can_delete_prospects', 'Can delete prospects'),
             ('can_edit_prospects', 'Can edit prospects'),
+            ('can_view_chat', 'Can view chat'),
+            ('can_view_sms', 'Can view SMS'),
         ]
 
     def __str__(self):
