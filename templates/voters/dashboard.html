@@ -88,6 +88,8 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departamento de votación</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Municipio de votación</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Puesto Consultado</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">WhatsApp</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orígenes</th>
@@ -116,6 +118,12 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {{ prospect.created_at|date:"d/m/Y H:i" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ prospect.department|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ prospect.municipality|default:"-" }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
                             {% if prospect.polling_station_consulted %}
@@ -193,7 +201,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">
+                        <td colspan="10" class="px-6 py-4 text-center text-sm text-gray-500">
                             No hay prospectos registrados aún.
                             <a href="{% url 'voters:prospect_create' %}" class="text-gray-700 hover:text-red-600">Crear el primero</a>
                         </td>
@@ -259,6 +267,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                         </svg>
                         {{ prospect.created_at|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="flex items-center text-sm text-gray-600">
+                        Depto: {{ prospect.department|default:"-" }} · Mun: {{ prospect.municipality|default:"-" }}
                     </div>
                     
                     {% if prospect.origins.all %}
