@@ -6,7 +6,7 @@ import logging
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from .models import Prospect, WhatsAppAccount
+from .models import Prospect, WhatsAppAccount, OriginProspect
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,68 @@ def validate_and_normalize_phone(phone):
         )
 
     return normalized
+
+
+def get_sms_filter_options():
+    """
+    Devuelve opciones para los filtros de la campaña SMS: departamentos,
+    municipios y orígenes (valores distintos no vacíos en prospectos).
+    """
+    departments = list(
+        Prospect.objects.exclude(department__in=[None, ''])
+        .values_list('department', flat=True)
+        .distinct()
+        .order_by('department')
+    )
+    municipalities = list(
+        Prospect.objects.exclude(municipality__in=[None, ''])
+        .values_list('municipality', flat=True)
+        .distinct()
+        .order_by('municipality')
+    )
+    origins = list(
+        OriginProspect.objects.filter(is_active=True).order_by('name').values_list('id', 'name')
+    )
+    # Excluir valor literal "None" y cadenas vacías de las opciones
+    department_choices = [(d, d) for d in departments if d and str(d).strip() and str(d) != 'None']
+    municipality_choices = [(m, m) for m in municipalities if m and str(m).strip() and str(m) != 'None']
+    origin_choices = [(str(oid), name) for oid, name in origins]
+    return department_choices, municipality_choices, origin_choices
+
+
+def get_sms_prospects_queryset(department_values=None, municipality_values=None, origin_ids=None, identification_numbers=None):
+    """
+    Queryset de prospectos con teléfono no vacío y filtros opcionales por
+    departamento, municipio, origen y número de cédula (múltiples valores).
+    """
+    qs = Prospect.objects.exclude(phone_number__in=[None, '']).exclude(phone_number='')
+    if department_values:
+        qs = qs.filter(department__in=department_values)
+    if municipality_values:
+        qs = qs.filter(municipality__in=municipality_values)
+    if origin_ids:
+        qs = qs.filter(origins__id__in=origin_ids).distinct()
+    if identification_numbers:
+        qs = qs.filter(identification_number__in=identification_numbers)
+    return qs.order_by('full_name')
+
+
+def get_prospects_with_valid_phone(queryset):
+    """
+    De un queryset de prospectos, devuelve lista de (prospect, phone_normalized)
+    solo para aquellos cuyo phone_number pasa validate_and_normalize_phone.
+    """
+    result = []
+    for prospect in queryset:
+        if not prospect.phone_number:
+            continue
+        try:
+            normalized = validate_and_normalize_phone(prospect.phone_number)
+            if normalized:
+                result.append((prospect, normalized))
+        except ValidationError:
+            continue
+    return result
 
 
 def should_trigger_celery_task(prospect):

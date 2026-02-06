@@ -145,3 +145,53 @@ def process_prospect(prospect_id):
         error_msg = f"Error al procesar prospecto {prospect_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
         return error_msg
+
+
+@shared_task
+def send_sms_campaign(provider_id, body, department_values=None, municipality_values=None, origin_ids=None, identification_numbers=None):
+    """
+    Tarea asíncrona que envía SMS masivos a los prospectos que cumplen los filtros,
+    usando el proveedor indicado (ej. twilio).
+
+    Args:
+        provider_id: Identificador del proveedor (ej. 'twilio').
+        body: Texto del mensaje SMS.
+        department_values: Lista de departamentos (opcional).
+        municipality_values: Lista de municipios (opcional).
+        origin_ids: Lista de IDs de origen (opcional).
+        identification_numbers: Lista de números de cédula (opcional).
+
+    Returns:
+        dict: {'sent': N, 'failed': M, 'errors': [...]}
+    """
+    from .sms_providers import get_provider
+    from .utils import get_sms_prospects_queryset, get_prospects_with_valid_phone
+
+    provider = get_provider(provider_id)
+    if not provider:
+        logger.error("[SMS] Proveedor no encontrado: %s", provider_id)
+        return {'sent': 0, 'failed': 0, 'errors': [f'Proveedor no encontrado: {provider_id}']}
+
+    qs = get_sms_prospects_queryset(
+        department_values=department_values,
+        municipality_values=municipality_values,
+        origin_ids=origin_ids,
+        identification_numbers=identification_numbers,
+    )
+    prospects_with_phone = get_prospects_with_valid_phone(qs)
+
+    sent = 0
+    failed = 0
+    errors = []
+    for prospect, phone_normalized in prospects_with_phone:
+        success, result = provider.send_sms(phone_normalized, body)
+        if success:
+            sent += 1
+            logger.info("[SMS] Enviado a %s (prospect %s)", phone_normalized, prospect.pk)
+        else:
+            failed += 1
+            errors.append(f"{phone_normalized}: {result}")
+            logger.warning("[SMS] Fallo en %s: %s", phone_normalized, result)
+
+    logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", sent, failed)
+    return {'sent': sent, 'failed': failed, 'errors': errors}

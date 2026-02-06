@@ -2,7 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 import re
-from .models import Prospect
+from .models import Prospect, OriginProspect
 
 
 class ProspectForm(forms.ModelForm):
@@ -123,3 +123,61 @@ class BulkUploadForm(forms.Form):
             raise ValidationError(_('El archivo es demasiado grande. El tamaño máximo es 10MB.'))
         
         return file
+
+
+class SMSFilterForm(forms.Form):
+    """
+    Formulario de filtros para la campaña SMS: departamento, municipio y origen
+    (múltiples valores permitidos).
+    """
+    department = forms.MultipleChoiceField(
+        label=_('Departamento de votación'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
+    municipality = forms.MultipleChoiceField(
+        label=_('Municipio de votación'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
+    origin = forms.MultipleChoiceField(
+        label=_('Origen'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
+    identification_number = forms.MultipleChoiceField(
+        label=_('Número de cédula'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
+
+    def __init__(self, *args, **kwargs):
+        department_choices = kwargs.pop('department_choices', None)
+        municipality_choices = kwargs.pop('municipality_choices', None)
+        origin_choices = kwargs.pop('origin_choices', None)
+        identification_choices = kwargs.pop('identification_choices', None)
+        super().__init__(*args, **kwargs)
+        if department_choices is not None:
+            self.fields['department'].choices = department_choices
+        if municipality_choices is not None:
+            self.fields['municipality'].choices = municipality_choices
+        if origin_choices is not None:
+            self.fields['origin'].choices = origin_choices
+        if identification_choices is not None:
+            self.fields['identification_number'].choices = identification_choices

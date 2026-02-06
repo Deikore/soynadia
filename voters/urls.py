@@ -18,4 +18,5 @@ urlpatterns = [
     path('webhooks/twilio/whatsapp/', webhook_views.twilio_whatsapp_webhook, name='twilio_whatsapp_webhook'),
     path('chat/', chat_views.chat_conversation_list, name='chat_list'),
     path('chat/<int:account_id>/', chat_views.chat_conversation_detail, name='chat_conversation'),
+    path('sms/', views.sms_campaign, name='sms_campaign'),
 ]

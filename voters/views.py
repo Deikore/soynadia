@@ -10,7 +10,7 @@ from django.db import transaction
 import csv
 import io
 from .models import Prospect, OriginProspect
-from .forms import ProspectForm, ProspectSearchForm, BulkUploadForm
+from .forms import ProspectForm, ProspectSearchForm, BulkUploadForm, SMSFilterForm
 from .utils import (
     should_trigger_celery_task,
     check_and_trigger_on_id_change,
@@ -18,8 +18,12 @@ from .utils import (
     validate_and_normalize_phone,
     associate_whatsapp_account,
     normalize_digits_only,
+    get_sms_filter_options,
+    get_sms_prospects_queryset,
+    get_prospects_with_valid_phone,
 )
 from .tasks import process_prospect
+from .sms_providers import get_provider, get_available_providers
 
 
 @login_required
@@ -476,3 +480,87 @@ def download_csv_template(request):
     response = HttpResponse(csv_content, content_type='text/csv; charset=utf-8-sig')
     response['Content-Disposition'] = 'attachment; filename="plantilla_prospectos.csv"'
     return response
+
+
+@login_required
+def sms_campaign(request):
+    """
+    Vista principal de la campaña SMS: filtros (departamento, municipio, origen),
+    lista de prospectos con teléfono válido, panel de mensaje, contador y selector de proveedor.
+    GET: muestra filtros, lista, textarea, contador y proveedor.
+    POST: valida mensaje y filtros, encola tarea Celery para envío masivo.
+    """
+    dept_choices, muni_choices, origin_choices = get_sms_filter_options()
+
+    if request.method == 'POST':
+        department_values = request.POST.getlist('department')
+        municipality_values = request.POST.getlist('municipality')
+        origin_ids = [int(x) for x in request.POST.getlist('origin') if x.isdigit()]
+        identification_values = request.POST.getlist('identification_number')
+    else:
+        department_values = request.GET.getlist('department')
+        municipality_values = request.GET.getlist('municipality')
+        origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
+        identification_values = request.GET.getlist('identification_number')
+
+    identification_choices = [(v, v) for v in identification_values if v and str(v).strip()]
+    filter_form = SMSFilterForm(
+        request.GET,
+        department_choices=dept_choices,
+        municipality_choices=muni_choices,
+        origin_choices=origin_choices,
+        identification_choices=identification_choices,
+    )
+
+    qs = get_sms_prospects_queryset(
+        department_values=department_values or None,
+        municipality_values=municipality_values or None,
+        origin_ids=origin_ids or None,
+        identification_numbers=identification_values or None,
+    )
+    prospects_with_phone = get_prospects_with_valid_phone(qs)
+    message_count = len(prospects_with_phone)
+
+    if request.method == 'POST':
+        body = (request.POST.get('message_body') or '').strip()
+        provider_id = request.POST.get('provider_id') or 'twilio'
+        if not body:
+            messages.error(request, _('El mensaje no puede estar vacío.'))
+        elif message_count == 0:
+            messages.error(request, _('No hay prospectos con teléfono válido para los filtros seleccionados.'))
+        else:
+            provider = get_provider(provider_id)
+            if not provider:
+                messages.error(request, _('Proveedor de SMS no válido.'))
+            else:
+                from .tasks import send_sms_campaign
+                send_sms_campaign.delay(
+                    provider_id=provider_id,
+                    body=body,
+                    department_values=department_values,
+                    municipality_values=municipality_values,
+                    origin_ids=origin_ids,
+                    identification_numbers=identification_values,
+                )
+                messages.success(
+                    request,
+                    _('Se han encolado %(n)s mensajes para envío. El envío se realizará en segundo plano.') % {'n': message_count},
+                )
+                return redirect('voters:sms_campaign')
+
+    paginator = Paginator(qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'filter_form': filter_form,
+        'page_obj': page_obj,
+        'prospects': page_obj,
+        'message_count': message_count,
+        'sms_providers': get_available_providers(),
+        'department_values': department_values,
+        'municipality_values': municipality_values,
+        'origin_ids': origin_ids,
+        'identification_values': identification_values,
+    }
+    return render(request, 'voters/sms_campaign.html', context)

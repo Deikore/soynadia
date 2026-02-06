@@ -748,6 +748,11 @@ TWILIO_WEBHOOK_URL=https://tu-dominio.com/webhooks/twilio/whatsapp/
 # Plantillas de Twilio para opt-in
 TWILIO_OPTIN_TEMPLATE_SID=HXc3259a2a93ad765cb532b2919bc2b1dd
 TWILIO_OPTIN_CONFIRMED_TEMPLATE_SID=HXf790520f9af4858389bec0ac00cf0b87
+
+# Campaña SMS (sección SMS en el panel)
+# Número Twilio desde el que se envían SMS (formato E.164, ej. +573001234567)
+# Si no se define, se usa TWILIO_WHATSAPP_NUMBER sin prefijo whatsapp: (solo desarrollo; en producción use un número dedicado para SMS)
+TWILIO_SMS_PHONE_NUMBER=+573001234567
 ```
 
 **Obtener las credenciales:**
