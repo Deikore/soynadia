@@ -73,6 +73,28 @@
         </div>
     </div>
 
+    <!-- Prospectos inscritos por origen -->
+    <div class="bg-white rounded-lg shadow-md mb-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Prospectos inscritos por origen</h2>
+            <p class="mt-1 text-sm text-gray-500">Si un prospecto tiene más de un origen, se cuenta en cada uno de ellos.</p>
+        </div>
+        <div class="p-6">
+            {% if prospects_by_origin %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {% for origin in prospects_by_origin %}
+                        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                            <span class="text-sm font-medium text-gray-900">{{ origin.name }}</span>
+                            <span class="text-2xl font-semibold text-gray-900">{{ origin.prospect_count }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-sm text-gray-500">No hay prospectos inscritos por origen.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Recent Prospects -->
     <div class="bg-white rounded-lg shadow-md">
         <div class="px-6 py-4 border-b border-gray-200">

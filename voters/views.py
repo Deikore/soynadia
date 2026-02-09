@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse, HttpResponseBadRequest, Http404
@@ -33,6 +33,12 @@ def dashboard(request):
     """
     total_prospects = Prospect.objects.count()
     recent_prospects = Prospect.objects.all()[:5]
+    prospects_by_origin = (
+        OriginProspect.objects.filter(is_active=True)
+        .annotate(prospect_count=Count('prospects'))
+        .filter(prospect_count__gt=0)
+        .order_by('-prospect_count')
+    )
     
     # Verificar si el usuario puede eliminar prospectos
     can_delete = (
@@ -51,6 +57,7 @@ def dashboard(request):
     context = {
         'total_prospects': total_prospects,
         'recent_prospects': recent_prospects,
+        'prospects_by_origin': prospects_by_origin,
         'can_delete_prospects': can_delete,
         'can_edit_prospects': can_edit,
     }
