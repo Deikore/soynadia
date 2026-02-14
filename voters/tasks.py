@@ -145,6 +145,48 @@ def process_prospect(prospect_id):
 
 
 @shared_task
+def send_single_sms(provider_id, prospect_id, phone_normalized, body):
+    """
+    Tarea asíncrona que envía un solo SMS a un destinatario.
+
+    Args:
+        provider_id: Identificador del proveedor (ej. 'onurix', 'twilio').
+        prospect_id: ID del prospecto destinatario.
+        phone_normalized: Número de teléfono normalizado.
+        body: Texto del mensaje SMS.
+
+    Returns:
+        dict: {'ok': bool, 'error': str or None}
+    """
+    from .sms_providers import get_provider
+    from .models import ProspectCommunication
+
+    provider = get_provider(provider_id)
+    if not provider:
+        logger.error("[SMS] Proveedor no encontrado: %s", provider_id)
+        return {'ok': False, 'error': f'Proveedor no encontrado: {provider_id}'}
+
+    success, result = provider.send_sms(phone_normalized, body)
+
+    try:
+        prospect = Prospect.objects.get(pk=prospect_id)
+        ProspectCommunication.objects.create(
+            prospect=prospect,
+            channel=ProspectCommunication.CHANNEL_SMS,
+            content=body,
+            provider_id=provider_id,
+        )
+    except ObjectDoesNotExist:
+        logger.warning("[SMS] Prospecto %s no encontrado al registrar comunicación", prospect_id)
+
+    if success:
+        logger.info("[SMS] Enviado a prospect_id=%s", prospect_id)
+        return {'ok': True, 'error': None}
+    logger.warning("[SMS] Fallo envío a prospect_id=%s: %s", prospect_id, result)
+    return {'ok': False, 'error': result}
+
+
+@shared_task
 def send_sms_campaign(provider_id, body, department_values=None, municipality_values=None, origin_ids=None, identification_numbers=None):
     """
     Tarea asíncrona que envía SMS masivos a los prospectos que cumplen los filtros,

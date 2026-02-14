@@ -8,9 +8,10 @@ from .onurix_provider import OnurixSMSProvider
 
 # Registry: provider_id -> (display_label, provider_class, bulk_export_slug)
 # bulk_export_slug: None si no tiene descarga masiva, o identificador (ej. 'onurix') si sí.
+# Orden: el primero es el predeterminado en la UI (Onurix).
 SMS_PROVIDER_REGISTRY = {
-    'twilio': ('Twilio', TwilioSMSProvider, None),
     'onurix': ('Onurix', OnurixSMSProvider, 'onurix'),
+    'twilio': ('Twilio', TwilioSMSProvider, None),
 }
 
 

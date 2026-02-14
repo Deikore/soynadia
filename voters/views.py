@@ -606,7 +606,7 @@ def sms_campaign(request):
 
     if request.method == 'POST':
         body = (request.POST.get('message_body') or '').strip()
-        provider_id = request.POST.get('provider_id') or 'twilio'
+        provider_id = request.POST.get('provider_id') or 'onurix'
         if not body:
             messages.error(request, _('El mensaje no puede estar vacío.'))
         elif message_count == 0:
@@ -616,15 +616,14 @@ def sms_campaign(request):
             if not provider:
                 messages.error(request, _('Proveedor de SMS no válido.'))
             else:
-                from .tasks import send_sms_campaign
-                send_sms_campaign.delay(
-                    provider_id=provider_id,
-                    body=body,
-                    department_values=department_values,
-                    municipality_values=municipality_values,
-                    origin_ids=origin_ids,
-                    identification_numbers=identification_values,
-                )
+                from .tasks import send_single_sms
+                for prospect, phone in prospects_with_phone:
+                    send_single_sms.delay(
+                        provider_id=provider_id,
+                        prospect_id=prospect.id,
+                        phone_normalized=phone,
+                        body=body,
+                    )
                 messages.success(
                     request,
                     _('Se han encolado %(n)s mensajes para envío. El envío se realizará en segundo plano.') % {'n': message_count},

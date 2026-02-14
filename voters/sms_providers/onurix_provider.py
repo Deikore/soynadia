@@ -1,6 +1,6 @@
 """
 Proveedor de SMS vía API de Onurix.
-Permite enviar a varios números en un solo request (phone separado por comas).
+Un request por número (envío individual).
 """
 import os
 import logging
@@ -31,22 +31,13 @@ def _format_phone(phone_normalized):
 
 class OnurixSMSProvider(BaseSMSProvider):
     """
-    Envío de SMS usando la API de Onurix. Soporta envío por lote en un solo
-    request (varios teléfonos separados por comas).
+    Envío de SMS usando la API de Onurix. Cada envío es un request con un solo número.
     Variables de entorno: ONURIX_CLIENT, ONURIX_KEY; opcional: ONURIX_GROUPS.
     """
 
     def send_sms(self, phone_normalized: str, body: str):
-        sent, failed, errors = self.send_sms_batch([phone_normalized], body)
-        if sent == 1:
-            return True, 'ok'
-        if failed == 1 and errors:
-            return False, errors[0]
-        return False, errors[0] if errors else 'Error al enviar'
-
-    def send_sms_batch(self, phone_list: list, body: str):
         if not body or not str(body).strip():
-            return 0, len(phone_list) if phone_list else 0, ['El mensaje no puede estar vacío']
+            return False, 'El mensaje no puede estar vacío'
 
         client = os.getenv('ONURIX_CLIENT')
         key = os.getenv('ONURIX_KEY')
@@ -56,24 +47,13 @@ class OnurixSMSProvider(BaseSMSProvider):
                 "[Onurix SMS] Faltan variables: CLIENT=%s, KEY=%s",
                 bool(client), bool(key)
             )
-            n = len(phone_list) if phone_list else 0
-            return 0, n, ['Configuración de Onurix incompleta (ONURIX_CLIENT, ONURIX_KEY)']
+            return False, 'Configuración de Onurix incompleta (ONURIX_CLIENT, ONURIX_KEY)'
 
-        if not phone_list:
-            return 0, 0, []
+        phone_formatted = _format_phone(phone_normalized)
+        if not phone_formatted:
+            logger.warning("[Onurix SMS] Número inválido: %s", phone_normalized)
+            return False, 'Número de teléfono inválido'
 
-        phones_formatted = []
-        for phone in phone_list:
-            p = _format_phone(phone)
-            if not p:
-                logger.warning("[Onurix SMS] Número inválido omitido: %s", phone)
-                continue
-            phones_formatted.append(p)
-
-        if not phones_formatted:
-            return 0, len(phone_list), ['Ningún número de teléfono válido']
-
-        phone_param = ','.join(phones_formatted)
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
@@ -81,7 +61,7 @@ class OnurixSMSProvider(BaseSMSProvider):
         data = {
             'client': client,
             'key': key,
-            'phone': phone_param,
+            'phone': phone_formatted,
             'sms': body.strip(),
         }
         groups = os.getenv('ONURIX_GROUPS')
@@ -92,17 +72,17 @@ class OnurixSMSProvider(BaseSMSProvider):
             r = requests.post(ONURIX_SEND_URL, headers=headers, data=data, timeout=30)
             if r.ok:
                 logger.info(
-                    "[Onurix SMS] Envío batch exitoso: %s números, response=%s",
-                    len(phones_formatted), r.text[:200] if r.text else ''
+                    "[Onurix SMS] Envío exitoso: %s, response=%s",
+                    phone_formatted, r.text[:200] if r.text else ''
                 )
-                return len(phones_formatted), 0, []
+                return True, 'ok'
             try:
                 err_body = r.json()
                 err_msg = str(err_body)
             except Exception:
                 err_msg = r.text or f'HTTP {r.status_code}'
-            logger.warning("[Onurix SMS] Error en envío batch: %s", err_msg)
-            return 0, len(phones_formatted), [err_msg]
+            logger.warning("[Onurix SMS] Error en envío: %s", err_msg)
+            return False, err_msg
         except requests.RequestException as e:
-            logger.error("[Onurix SMS] Error de red al enviar batch: %s", e, exc_info=True)
-            return 0, len(phones_formatted), [str(e)]
+            logger.error("[Onurix SMS] Error de red al enviar: %s", e, exc_info=True)
+            return False, str(e)
