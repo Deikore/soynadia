@@ -9,6 +9,7 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('prospects/', views.prospect_list, name='prospect_list'),
+    path('prospects/export/', views.prospect_export_excel, name='prospect_export_excel'),
     path('prospects/create/', views.prospect_create, name='prospect_create'),
     path('prospects/bulk-upload/', views.prospect_bulk_upload, name='prospect_bulk_upload'),
     path('prospects/bulk-upload/template/', views.download_csv_template, name='download_csv_template'),

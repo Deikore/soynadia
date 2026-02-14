@@ -10,7 +10,7 @@ from django.db import transaction
 import csv
 import io
 from .models import Prospect, OriginProspect
-from .forms import ProspectForm, ProspectSearchForm, BulkUploadForm, SMSFilterForm
+from .forms import ProspectForm, ProspectSearchForm, ProspectListFilterForm, BulkUploadForm, SMSFilterForm
 from .utils import (
     should_trigger_celery_task,
     check_and_trigger_on_id_change,
@@ -20,6 +20,7 @@ from .utils import (
     normalize_digits_only,
     get_sms_filter_options,
     get_sms_prospects_queryset,
+    get_prospect_list_queryset,
     get_prospects_with_valid_phone,
 )
 from .tasks import process_prospect
@@ -67,49 +68,56 @@ def dashboard(request):
 @login_required
 def prospect_list(request):
     """
-    Vista para listar y buscar prospectos.
+    Vista para listar y buscar prospectos con filtros por departamento,
+    municipio, origen, número de cédula y nombre.
     """
-    search_form = ProspectSearchForm(request.GET)
-    prospects = Prospect.objects.all()
-    
-    # Filtrar por búsqueda si se proporciona
-    if search_form.is_valid():
-        identification_number = search_form.cleaned_data.get('identification_number')
-        full_name = (search_form.cleaned_data.get('full_name') or '').strip()
-        if identification_number:
-            prospects = prospects.filter(
-                Q(identification_number__icontains=identification_number)
-            )
-        if full_name:
-            prospects = prospects.filter(full_name__icontains=full_name)
-    
-    # Paginación
+    dept_choices, muni_choices, origin_choices = get_sms_filter_options()
+    department_values = request.GET.getlist('department')
+    municipality_values = request.GET.getlist('municipality')
+    origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
+    identification_values = request.GET.getlist('identification_number')
+    full_name_values = request.GET.getlist('full_name')
+    identification_choices = [(v, v) for v in identification_values if v and str(v).strip()]
+    full_name_choices = [(v, v) for v in full_name_values if v and str(v).strip()]
+
+    filter_form = ProspectListFilterForm(
+        request.GET,
+        department_choices=dept_choices,
+        municipality_choices=muni_choices,
+        origin_choices=origin_choices,
+        identification_choices=identification_choices,
+        full_name_choices=full_name_choices,
+    )
+    prospects = get_prospect_list_queryset(
+        department_values=department_values or None,
+        municipality_values=municipality_values or None,
+        origin_ids=origin_ids or None,
+        identification_numbers=identification_values or None,
+        full_name_values=full_name_values or None,
+    )
+
     paginator = Paginator(prospects, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
-    # Query string sin 'page' para enlaces de paginación
+
     get_copy = request.GET.copy()
     if 'page' in get_copy:
         get_copy.pop('page')
     query_string = get_copy.urlencode()
-    
-    # Verificar si el usuario puede eliminar prospectos
+
     can_delete = (
         request.user.is_superuser or
         request.user.has_perm('voters.can_delete_prospects') or
         request.user.groups.filter(name='Puede Eliminar Prospectos').exists()
     )
-    
-    # Verificar si el usuario puede editar prospectos
     can_edit = (
         request.user.is_superuser or
         request.user.has_perm('voters.can_edit_prospects') or
         request.user.groups.filter(name='Puede Editar Prospectos').exists()
     )
-    
+
     context = {
-        'search_form': search_form,
+        'filter_form': filter_form,
         'page_obj': page_obj,
         'prospects': page_obj,
         'can_delete_prospects': can_delete,
@@ -117,6 +125,87 @@ def prospect_list(request):
         'query_string': query_string,
     }
     return render(request, 'voters/prospect_list.html', context)
+
+
+@login_required
+def prospect_export_excel(request):
+    """
+    Exporta los prospectos (con los mismos filtros que la lista) a un archivo Excel.
+    La columna Orígenes lleva cada origen separado por comas.
+    """
+    from openpyxl import Workbook
+    from io import BytesIO
+
+    department_values = request.GET.getlist('department')
+    municipality_values = request.GET.getlist('municipality')
+    origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
+    identification_values = request.GET.getlist('identification_number')
+    full_name_values = request.GET.getlist('full_name')
+
+    qs = get_prospect_list_queryset(
+        department_values=department_values or None,
+        municipality_values=municipality_values or None,
+        origin_ids=origin_ids or None,
+        identification_numbers=identification_values or None,
+        full_name_values=full_name_values or None,
+    )
+
+    headers = [
+        'Número de identificación',
+        'Nombre completo',
+        'Teléfono',
+        'Fecha de creación',
+        'Fecha de actualización',
+        'Departamento',
+        'Municipio',
+        'Puesto',
+        'Dirección mesa',
+        'Mesa',
+        'Novedad',
+        'Resolución',
+        'Fecha novedad',
+        'Puesto consultado',
+        'Aceptación términos',
+        'Autorización envío información',
+        'Orígenes',
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Prospectos'
+    ws.append(headers)
+
+    for p in qs:
+        origins_str = ', '.join(p.origins.values_list('name', flat=True))
+        row = [
+            p.identification_number or '',
+            p.full_name or '',
+            p.phone_number or '',
+            p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else '',
+            p.updated_at.strftime('%Y-%m-%d %H:%M') if p.updated_at else '',
+            p.department or '',
+            p.municipality or '',
+            p.polling_station or '',
+            p.polling_station_address or '',
+            p.table or '',
+            p.notice or '',
+            p.resolution or '',
+            p.notice_date or '',
+            'Sí' if p.polling_station_consulted else 'No',
+            'Sí' if p.accepted_terms else 'No',
+            'Sí' if p.authorize_info_sending else 'No',
+            origins_str,
+        ]
+        ws.append(row)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="prospectos.xlsx"'
+    return response
 
 
 @login_required

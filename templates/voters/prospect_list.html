@@ -3,31 +3,47 @@
 {% block title %}Prospectos - SoyNadia{% endblock %}
 
 {% block content %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.css" rel="stylesheet">
 <div class="fade-in">
     <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-900">Prospectos</h1>
         <p class="mt-2 text-gray-600">Busca y gestiona todos los prospectos</p>
     </div>
 
-    <!-- Search Form -->
+    <!-- Filtros -->
     <div class="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
         <form method="get" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                    {{ search_form.identification_number.label_tag }}
-                    {{ search_form.identification_number }}
+                    {{ filter_form.department.label_tag }}
+                    {{ filter_form.department }}
                 </div>
                 <div>
-                    {{ search_form.full_name.label_tag }}
-                    {{ search_form.full_name }}
+                    {{ filter_form.municipality.label_tag }}
+                    {{ filter_form.municipality }}
+                </div>
+                <div>
+                    {{ filter_form.origin.label_tag }}
+                    {{ filter_form.origin }}
+                </div>
+                <div>
+                    {{ filter_form.identification_number.label_tag }}
+                    {{ filter_form.identification_number }}
+                </div>
+                <div class="lg:col-span-2">
+                    {{ filter_form.full_name.label_tag }}
+                    {{ filter_form.full_name }}
                 </div>
             </div>
-            <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto">
-                    Buscar
+                    Aplicar filtros
                 </button>
                 <a href="{% url 'voters:prospect_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto">
                     Limpiar
+                </a>
+                <a href="{% url 'voters:prospect_export_excel' %}{% if query_string %}?{{ query_string }}{% endif %}" class="border-2 border-green-600 text-green-700 hover:bg-green-50 bg-transparent px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto">
+                    Exportar a Excel
                 </a>
                 <a href="{% url 'voters:prospect_bulk_upload' %}" class="border-2 border-red-600 text-red-600 hover:bg-red-50 bg-transparent px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto">
                     Carga Masiva
@@ -336,4 +352,27 @@
         {% endif %}
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var opts = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba para buscar...' };
+    if (document.getElementById('id_department')) {
+        new TomSelect('#id_department', opts);
+    }
+    if (document.getElementById('id_municipality')) {
+        new TomSelect('#id_municipality', opts);
+    }
+    if (document.getElementById('id_origin')) {
+        new TomSelect('#id_origin', opts);
+    }
+    var optsCedula = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba número de cédula y pulse Enter', create: true };
+    if (document.getElementById('id_identification_number')) {
+        new TomSelect('#id_identification_number', optsCedula);
+    }
+    var optsNombre = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba parte del nombre y pulse Enter', create: true };
+    if (document.getElementById('id_full_name')) {
+        new TomSelect('#id_full_name', optsNombre);
+    }
+});
+</script>
 {% endblock %}

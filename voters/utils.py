@@ -4,6 +4,7 @@ Utilidades para la app voters.
 import re
 import logging
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from .models import Prospect, WhatsAppAccount, OriginProspect
@@ -104,6 +105,40 @@ def get_sms_prospects_queryset(department_values=None, municipality_values=None,
     if identification_numbers:
         qs = qs.filter(identification_number__in=identification_numbers)
     return qs.order_by('full_name')
+
+
+def get_prospect_list_queryset(
+    department_values=None,
+    municipality_values=None,
+    origin_ids=None,
+    identification_numbers=None,
+    full_name_values=None,
+):
+    """
+    Queryset de prospectos para la lista y exportación, con filtros opcionales.
+    No restringe por teléfono (a diferencia de get_sms_prospects_queryset).
+    identification_numbers: lista de cédulas (coincidencia exacta).
+    full_name_values: lista de strings; filtro OR por full_name__icontains.
+    """
+    qs = Prospect.objects.all()
+    if department_values:
+        qs = qs.filter(department__in=department_values)
+    if municipality_values:
+        qs = qs.filter(municipality__in=municipality_values)
+    if origin_ids:
+        qs = qs.filter(origins__id__in=origin_ids).distinct()
+    if identification_numbers:
+        normalized = [v.strip() for v in identification_numbers if v and str(v).strip()]
+        if normalized:
+            qs = qs.filter(identification_number__in=normalized)
+    if full_name_values:
+        stripped = [v.strip() for v in full_name_values if v and str(v).strip()]
+        if stripped:
+            q = Q()
+            for v in stripped:
+                q |= Q(full_name__icontains=v)
+            qs = qs.filter(q)
+    return qs.order_by('-created_at')
 
 
 def get_prospects_with_valid_phone(queryset):
