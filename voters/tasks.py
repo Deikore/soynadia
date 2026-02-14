@@ -74,21 +74,18 @@ def process_prospect(prospect_id):
         if not resultado.get('exito', False):
             error_msg = resultado.get('error', 'Error desconocido al consultar lugar de votación')
             logger.error(f"Error en consulta: {error_msg}")
-            
-            # Guardar el error como novedad
             update_fields = ['polling_station_consulted', 'notice']
-            
-            # Si el error es "No se pudo extraer información de la respuesta",
-            # guardar mensaje específico
-            if error_msg == 'No se pudo extraer información de la respuesta':
+            # Mensaje amigable según tipo de error (API Infovotantes)
+            if '404' in str(error_msg) or 'Not Found' in str(error_msg):
+                notice_msg = f"El documento de identidad número {prospect.identification_number} no se encuentra en el censo electoral para esta elección."
+            elif error_msg == 'No se pudo extraer información de la respuesta':
                 notice_msg = f"El documento de identidad número {prospect.identification_number} no se encuentra en el censo para esta elección."
+            elif 'censo' in error_msg.lower():
+                notice_msg = error_msg
             else:
-                # Cualquier otro error se guarda como novedad con el mensaje de error
                 notice_msg = f"Error al consultar lugar de votación: {error_msg}"
-            
             prospect.notice = notice_msg
             logger.info(f"Guardando novedad: {notice_msg}")
-            
             prospect.polling_station_consulted = True
             prospect.save(update_fields=update_fields)
             return f"Error al consultar lugar de votación: {error_msg}"
