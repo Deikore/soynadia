@@ -7,7 +7,10 @@ import requests
 from bs4 import BeautifulSoup
 from twocaptcha import TwoCaptcha
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
+# URL base del sitio (para Referer y warm-up)
+DEFAULT_BASE_URL = "https://eleccionescolombia.registraduria.gov.co"
 # URL de la página de identificación (GET para cargar formulario y obtener sitekey)
 DEFAULT_PAGE_URL = "https://eleccionescolombia.registraduria.gov.co/identificacion"
 # API Infovotantes para la consulta real (POST con Bearer = token captcha)
@@ -24,17 +27,28 @@ class VotingPlaceQuery:
         self.api_key = api_key
         self.url = os.getenv("REGISTRADURIA_CENSO_URL", DEFAULT_PAGE_URL)
         self.api_url = os.getenv("REGISTRADURIA_API_URL", DEFAULT_API_URL)
+        base_url_env = os.getenv("REGISTRADURIA_BASE_URL", DEFAULT_BASE_URL)
+        if base_url_env:
+            self.base_url = base_url_env.rstrip('/')
+        else:
+            parsed = urlparse(self.url)
+            self.base_url = f"{parsed.scheme}://{parsed.netloc}"
         self.solver = TwoCaptcha(api_key)
         self.session = requests.Session()
         self.logger = logger
-        
+
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': f'{self.base_url}/',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
         })
     
     def _log(self, message, level='info'):
@@ -49,17 +63,37 @@ class VotingPlaceQuery:
                 self.logger.debug(message)
         else:
             print(message)
-        
+
+    def _ensure_session_cookies(self):
+        """GET al dominio base para obtener cookies y establecer sesión (warm-up)."""
+        try:
+            self.session.get(f'{self.base_url}/', timeout=15)
+        except Exception:
+            pass
+
     def get_page(self):
         try:
+            self._ensure_session_cookies()
             self._log("⏳ Cargando página...")
             response = self.session.get(self.url, timeout=15)
+
+            if response.status_code == 403:
+                self._log(
+                    "✗ El servidor rechazó la petición (403 Forbidden). "
+                    "Se han aplicado headers de navegador y warm-up.",
+                    'error'
+                )
+                return None, None
+
             response.raise_for_status()
-            
+
             soup = BeautifulSoup(response.text, 'html.parser')
             self._log("✓ Página cargada exitosamente")
             return soup, response
-            
+
+        except requests.exceptions.HTTPError as e:
+            self._log(f"✗ Error HTTP al cargar página: {e}", 'error')
+            return None, None
         except Exception as e:
             self._log(f"✗ Error al cargar página: {e}", 'error')
             return None, None
