@@ -9,6 +9,9 @@ from twocaptcha import TwoCaptcha
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
+from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
+
 # URL base del sitio (para Referer y warm-up)
 DEFAULT_BASE_URL = "https://eleccionescolombia.registraduria.gov.co"
 # URL de la página de identificación (GET para cargar formulario y obtener sitekey)
@@ -64,38 +67,51 @@ class VotingPlaceQuery:
         else:
             print(message)
 
-    def _ensure_session_cookies(self):
-        """GET al dominio base para obtener cookies y establecer sesión (warm-up)."""
-        try:
-            self.session.get(f'{self.base_url}/', timeout=15)
-        except Exception:
-            pass
+    def _apply_playwright_cookies_to_session(self, cookies):
+        """Copia las cookies del contexto Playwright a la sesión requests."""
+        self.session.cookies.clear()
+        for c in cookies:
+            domain = c.get('domain')
+            path = c.get('path') or '/'
+            self.session.cookies.set(c['name'], c['value'], domain=domain, path=path)
 
     def get_page(self):
+        """Carga la página de identificación con Playwright headless (anti-detección)."""
+        timeout_ms = 20000
+        user_agent = self.session.headers.get('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
         try:
-            self._ensure_session_cookies()
-            self._log("⏳ Cargando página...")
-            response = self.session.get(self.url, timeout=15)
-
-            if response.status_code == 403:
-                self._log(
-                    "✗ El servidor rechazó la petición (403 Forbidden). "
-                    "Se han aplicado headers de navegador y warm-up.",
-                    'error'
+            self._log("⏳ Cargando página con Playwright (headless)...")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    ignore_default_args=['--enable-automation'],
+                    args=['--disable-blink-features=AutomationControlled'],
                 )
-                return None, None
+                context = browser.new_context(
+                    locale='es-CO',
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent=user_agent,
+                )
+                Stealth().apply_stealth_sync(context)
+                page = context.new_page()
 
-            response.raise_for_status()
+                try:
+                    page.goto(f'{self.base_url}/', timeout=timeout_ms, wait_until='domcontentloaded')
+                except Exception:
+                    pass
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            self._log("✓ Página cargada exitosamente")
-            return soup, response
+                page.goto(self.url, timeout=timeout_ms, wait_until='domcontentloaded')
+                html = page.content()
+                cookies = context.cookies()
+                browser.close()
 
-        except requests.exceptions.HTTPError as e:
-            self._log(f"✗ Error HTTP al cargar página: {e}", 'error')
-            return None, None
+            self._apply_playwright_cookies_to_session(cookies)
+            soup = BeautifulSoup(html, 'html.parser')
+            self._log("✓ Página cargada exitosamente (Playwright)")
+            return soup, None
+
         except Exception as e:
-            self._log(f"✗ Error al cargar página: {e}", 'error')
+            self._log(f"✗ Error al cargar página con Playwright: {e}", 'error')
             return None, None
         
     def get_sitekey(self, soup):
@@ -103,23 +119,34 @@ class VotingPlaceQuery:
             recaptcha_div = soup.find('div', {'class': 'g-recaptcha'})
             if recaptcha_div and recaptcha_div.get('data-sitekey'):
                 return recaptcha_div['data-sitekey']
-            
+
             element = soup.find(attrs={'data-sitekey': True})
             if element:
                 return element['data-sitekey']
-            
+
+            # reCAPTCHA v3: sitekey en script src con render= (ej. api.js?render=SITEKEY)
+            recaptcha_script = soup.find('script', id='google-recaptcha-v3')
+            if recaptcha_script and recaptcha_script.get('src'):
+                match = re.search(r'render=([^&"\'\s]+)', recaptcha_script['src'])
+                if match:
+                    return match.group(1)
+
             html_text = str(soup)
             match = re.search(r'data-sitekey=["\']([^"\']+)["\']', html_text)
             if match:
                 return match.group(1)
-            
+
+            match = re.search(r'render=([^&"\'\s]+)', html_text)
+            if match:
+                return match.group(1)
+
             match = re.search(r'recaptcha.*?k=([^&"\']+)', html_text)
             if match:
                 return match.group(1)
-                
+
         except Exception as e:
             self._log(f"⚠ Error al obtener sitekey: {e}", 'warning')
-            
+
         return None
     
     def solve_captcha(self, sitekey):

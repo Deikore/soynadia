@@ -27,6 +27,9 @@ COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
+# Install Playwright Chromium and system dependencies (for voting place query headless)
+RUN python -m playwright install --with-deps chromium
+
 # Copy project files needed for Tailwind compilation first (for better caching)
 COPY tailwind.config.js /app/
 COPY static/css/input.css /app/static/css/
