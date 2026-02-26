@@ -30,6 +30,14 @@
                     {{ filter_form.identification_number.label_tag }}
                     {{ filter_form.identification_number }}
                 </div>
+                <div>
+                    {{ filter_form.sexo.label_tag }}
+                    {{ filter_form.sexo }}
+                </div>
+                <div>
+                    {{ filter_form.enlace.label_tag }}
+                    {{ filter_form.enlace }}
+                </div>
             </div>
             <div class="flex flex-col sm:flex-row gap-3">
                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto">
@@ -100,6 +108,12 @@
                 {% for v in identification_values %}
                 <input type="hidden" name="identification_number" value="{{ v }}">
                 {% endfor %}
+                {% for v in sexo_values %}
+                <input type="hidden" name="sexo" value="{{ v }}">
+                {% endfor %}
+                {% for v in enlace_values %}
+                <input type="hidden" name="enlace" value="{{ v }}">
+                {% endfor %}
                 <input type="hidden" name="message_body" id="bulk_export_message_body" value="">
                 <button type="submit" class="border-2 border-red-600 text-red-600 hover:bg-red-50 px-6 py-2 rounded-lg font-medium transition-colors">
                     Descargar archivo masivo
@@ -121,6 +135,8 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Departamento</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Municipio</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sexo</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enlace</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orígenes</th>
                     </tr>
                 </thead>
@@ -139,6 +155,12 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {{ prospect.municipality|default:"-" }}
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ prospect.sexo|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ prospect.enlace|default:"-" }}
+                        </td>
                         <td class="px-6 py-4 text-sm text-gray-500">
                             {% if prospect.origins.all %}
                                 <div class="flex flex-wrap gap-1">
@@ -153,7 +175,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                        <td colspan="7" class="px-6 py-8 text-center text-gray-500">
                             No hay prospectos con teléfono válido que cumplan los filtros. Ajuste los filtros o agregue prospectos con teléfono.
                         </td>
                     </tr>
@@ -168,6 +190,7 @@
                 <p class="font-medium text-gray-900">{{ prospect.get_full_name }}</p>
                 <p class="text-sm text-gray-500">Tel: {{ prospect.phone_number }}</p>
                 <p class="text-sm text-gray-500">Depto: {{ prospect.department|default:"-" }} · Mun: {{ prospect.municipality|default:"-" }}</p>
+                <p class="text-sm text-gray-500">Sexo: {{ prospect.sexo|default:"-" }}{% if prospect.enlace %} · Enlace: {{ prospect.enlace }}{% endif %}</p>
                 {% if prospect.origins.all %}
                 <div class="flex flex-wrap gap-1 mt-1">
                     {% for origin in prospect.origins.all %}
@@ -189,10 +212,10 @@
             </span>
             <div class="flex gap-2">
                 {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}{% for v in department_values %}&department={{ v|urlencode }}{% endfor %}{% for v in municipality_values %}&municipality={{ v|urlencode }}{% endfor %}{% for id in origin_ids %}&origin={{ id }}{% endfor %}{% for v in identification_values %}&identification_number={{ v|urlencode }}{% endfor %}" class="text-red-600 hover:text-red-700 font-medium">Anterior</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% for v in department_values %}&department={{ v|urlencode }}{% endfor %}{% for v in municipality_values %}&municipality={{ v|urlencode }}{% endfor %}{% for id in origin_ids %}&origin={{ id }}{% endfor %}{% for v in identification_values %}&identification_number={{ v|urlencode }}{% endfor %}{% for v in sexo_values %}&sexo={{ v|urlencode }}{% endfor %}{% for v in enlace_values %}&enlace={{ v|urlencode }}{% endfor %}" class="text-red-600 hover:text-red-700 font-medium">Anterior</a>
                 {% endif %}
                 {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% for v in department_values %}&department={{ v|urlencode }}{% endfor %}{% for v in municipality_values %}&municipality={{ v|urlencode }}{% endfor %}{% for id in origin_ids %}&origin={{ id }}{% endfor %}{% for v in identification_values %}&identification_number={{ v|urlencode }}{% endfor %}" class="text-red-600 hover:text-red-700 font-medium">Siguiente</a>
+                <a href="?page={{ page_obj.next_page_number }}{% for v in department_values %}&department={{ v|urlencode }}{% endfor %}{% for v in municipality_values %}&municipality={{ v|urlencode }}{% endfor %}{% for id in origin_ids %}&origin={{ id }}{% endfor %}{% for v in identification_values %}&identification_number={{ v|urlencode }}{% endfor %}{% for v in sexo_values %}&sexo={{ v|urlencode }}{% endfor %}{% for v in enlace_values %}&enlace={{ v|urlencode }}{% endfor %}" class="text-red-600 hover:text-red-700 font-medium">Siguiente</a>
                 {% endif %}
             </div>
         </div>
@@ -215,6 +238,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var optsCedula = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba número de cédula y pulse Enter', create: true };
     if (document.getElementById('id_identification_number')) {
         new TomSelect('#id_identification_number', optsCedula);
+    }
+    if (document.getElementById('id_sexo')) {
+        new TomSelect('#id_sexo', opts);
+    }
+    if (document.getElementById('id_enlace')) {
+        new TomSelect('#id_enlace', opts);
     }
 
     var bulkExportUrls = {

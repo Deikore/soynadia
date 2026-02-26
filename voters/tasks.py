@@ -1,14 +1,26 @@
 """
 Tareas asíncronas de Celery para la app voters.
 """
+import csv
+import io
 import os
 from pathlib import Path
 import environ
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.db import transaction
 from django.conf import settings
-from .models import Prospect
+from django.utils.translation import gettext_lazy as _
+from .models import Prospect, OriginProspect, BulkUploadJob
+from .utils import (
+    normalize_digits_only,
+    validate_and_normalize_phone,
+    associate_whatsapp_account,
+    check_and_trigger_on_id_change,
+    should_trigger_celery_task,
+    trigger_polling_station_consult,
+)
 from services.voting_place_query import VotingPlaceQuery
 
 logger = get_task_logger(__name__)
@@ -142,6 +154,186 @@ def process_prospect(prospect_id):
         error_msg = f"Error al procesar prospecto {prospect_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
         return error_msg
+
+
+@shared_task
+def process_bulk_upload(job_id):
+    """
+    Procesa un archivo CSV de carga masiva de prospectos en segundo plano.
+    Lee el archivo del BulkUploadJob, crea/actualiza prospectos y guarda el
+    resultado en result_json.
+    """
+    try:
+        job = BulkUploadJob.objects.get(pk=job_id)
+    except BulkUploadJob.DoesNotExist:
+        logger.error("BulkUploadJob %s no encontrado", job_id)
+        return
+
+    job.status = BulkUploadJob.STATUS_PROCESSING
+    job.save(update_fields=['status'])
+
+    try:
+        with job.file.open('rb') as f:
+            content = f.read()
+        try:
+            content_str = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                content_str = content.decode('utf-8')
+            except UnicodeDecodeError:
+                content_str = content.decode('latin-1')
+
+        lines = content_str.split('\n')[:3]
+        semicolon_count = sum(line.count(';') for line in lines if line.strip())
+        comma_count = sum(line.count(',') for line in lines if line.strip())
+        delimiter = ';' if semicolon_count >= comma_count else ','
+
+        csv_reader = csv.DictReader(io.StringIO(content_str), delimiter=delimiter)
+        required_headers = ['full_name', 'phone_number', 'origin']
+        if not csv_reader.fieldnames or not all(h in csv_reader.fieldnames for h in required_headers):
+            job.status = BulkUploadJob.STATUS_FAILED
+            job.error_message = _(
+                'El archivo CSV debe contener los encabezados: full_name, phone_number, origin.'
+            )
+            job.save(update_fields=['status', 'error_message'])
+            return
+
+        results = {'total': 0, 'created': 0, 'updated': 0, 'errors': []}
+        prospect_ids_to_process = []
+
+        with transaction.atomic():
+            for row_num, row in enumerate(csv_reader, start=2):
+                results['total'] += 1
+                row_errors = []
+                identification_number_raw = (row.get('identification_number') or '').strip()
+                full_name = (row.get('full_name') or '').strip()
+                phone_number = (row.get('phone_number') or '').strip()
+                origin_raw = (row.get('origin') or '').strip()
+                sexo_val = (row.get('sexo') or '').strip() or None
+                enlace_val = (row.get('enlace') or '').strip() or None
+
+                # Múltiples orígenes separados por coma o punto y coma
+                origin_names = [
+                    p.strip() for p in origin_raw.replace(';', ',').split(',')
+                    if p.strip()
+                ]
+
+                identification_number = None
+                if identification_number_raw:
+                    identification_number_normalized = normalize_digits_only(identification_number_raw)
+                    identification_number = identification_number_normalized or None
+                if not full_name:
+                    row_errors.append(_('full_name es obligatorio'))
+                if not origin_names:
+                    row_errors.append(_('origin es obligatorio'))
+                if row_errors:
+                    results['errors'].append({
+                        'row': row_num,
+                        'identification_number': identification_number or '-',
+                        'errors': row_errors,
+                    })
+                    continue
+
+                normalized_phone = None
+                if phone_number:
+                    try:
+                        normalized_phone = validate_and_normalize_phone(phone_number)
+                    except ValidationError as e:
+                        results['errors'].append({
+                            'row': row_num,
+                            'identification_number': identification_number or '-',
+                            'errors': [str(e)],
+                        })
+                        continue
+
+                try:
+                    origins_list = []
+                    for name in origin_names:
+                        origin, _ = OriginProspect.objects.get_or_create(
+                            name=name,
+                            defaults={
+                                'description': 'Origen creado desde carga masiva',
+                                'is_active': True,
+                            },
+                        )
+                        origins_list.append(origin)
+
+                    prospect = None
+                    old_id = None
+                    if identification_number:
+                        try:
+                            prospect = Prospect.objects.get(identification_number=identification_number)
+                            old_id = prospect.identification_number
+                        except Prospect.DoesNotExist:
+                            pass
+                    elif normalized_phone:
+                        prospect = Prospect.objects.filter(
+                            phone_number=normalized_phone,
+                            identification_number__isnull=True,
+                        ).first()
+                        if prospect:
+                            old_id = prospect.identification_number
+
+                    if prospect:
+                        prospect.full_name = full_name
+                        if normalized_phone is not None:
+                            prospect.phone_number = normalized_phone
+                        if identification_number:
+                            prospect.identification_number = identification_number
+                        prospect.sexo = sexo_val
+                        prospect.enlace = enlace_val
+                        prospect.save()
+                        prospect.origins.set(origins_list)
+                        associate_whatsapp_account(prospect)
+                        result = check_and_trigger_on_id_change(prospect, old_id, trigger_task=False)
+                        if result:
+                            prospect_ids_to_process.append(
+                                result if isinstance(result, int) else prospect.id
+                            )
+                        else:
+                            result2 = trigger_polling_station_consult(prospect, trigger_task=False)
+                            if result2:
+                                prospect_ids_to_process.append(
+                                    result2 if isinstance(result2, int) else prospect.id
+                                )
+                        results['updated'] += 1
+                    else:
+                        prospect = Prospect.objects.create(
+                            identification_number=identification_number,
+                            full_name=full_name,
+                            phone_number=normalized_phone,
+                            sexo=sexo_val,
+                            enlace=enlace_val,
+                            created_by=job.user,
+                        )
+                        prospect.origins.set(origins_list)
+                        associate_whatsapp_account(prospect)
+                        if should_trigger_celery_task(prospect):
+                            prospect_ids_to_process.append(prospect.id)
+                        results['created'] += 1
+                except Exception as e:
+                    results['errors'].append({
+                        'row': row_num,
+                        'identification_number': identification_number or '-',
+                        'errors': [str(e)],
+                    })
+
+        for pid in prospect_ids_to_process:
+            process_prospect.delay(pid)
+
+        job.result_json = results
+        job.status = BulkUploadJob.STATUS_COMPLETED
+        job.error_message = ''
+        job.save(update_fields=['result_json', 'status', 'error_message'])
+        logger.info(
+            "BulkUploadJob %s completado: created=%s, updated=%s, errors=%s",
+            job_id, results['created'], results['updated'], len(results['errors']),
+        )
+    except Exception as e:
+        logger.exception("BulkUploadJob %s falló: %s", job_id, e)
+        job.status = BulkUploadJob.STATUS_FAILED
+        job.error_message = str(e)
+        job.save(update_fields=['status', 'error_message'])
 
 
 @shared_task

@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -6,10 +7,7 @@ from django.db.models import Q, Count
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse, HttpResponseBadRequest, Http404
-from django.db import transaction
-import csv
-import io
-from .models import Prospect, OriginProspect
+from .models import Prospect, OriginProspect, BulkUploadJob
 from .forms import ProspectForm, ProspectSearchForm, ProspectListFilterForm, BulkUploadForm, SMSFilterForm
 from .utils import (
     should_trigger_celery_task,
@@ -17,13 +15,12 @@ from .utils import (
     trigger_polling_station_consult,
     validate_and_normalize_phone,
     associate_whatsapp_account,
-    normalize_digits_only,
     get_sms_filter_options,
     get_sms_prospects_queryset,
     get_prospect_list_queryset,
     get_prospects_with_valid_phone,
 )
-from .tasks import process_prospect
+from .tasks import process_prospect, process_bulk_upload
 from .sms_providers import get_provider, get_available_providers, get_provider_ids_with_bulk_export
 
 
@@ -71,12 +68,14 @@ def prospect_list(request):
     Vista para listar y buscar prospectos con filtros por departamento,
     municipio, origen, número de cédula y nombre.
     """
-    dept_choices, muni_choices, origin_choices = get_sms_filter_options()
+    dept_choices, muni_choices, origin_choices, sexo_choices, enlace_choices = get_sms_filter_options()
     department_values = request.GET.getlist('department')
     municipality_values = request.GET.getlist('municipality')
     origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
     identification_values = request.GET.getlist('identification_number')
     full_name_values = request.GET.getlist('full_name')
+    sexo_values = request.GET.getlist('sexo')
+    enlace_values = request.GET.getlist('enlace')
     identification_choices = [(v, v) for v in identification_values if v and str(v).strip()]
     full_name_choices = [(v, v) for v in full_name_values if v and str(v).strip()]
 
@@ -87,6 +86,8 @@ def prospect_list(request):
         origin_choices=origin_choices,
         identification_choices=identification_choices,
         full_name_choices=full_name_choices,
+        sexo_choices=sexo_choices,
+        enlace_choices=enlace_choices,
     )
     prospects = get_prospect_list_queryset(
         department_values=department_values or None,
@@ -94,6 +95,8 @@ def prospect_list(request):
         origin_ids=origin_ids or None,
         identification_numbers=identification_values or None,
         full_name_values=full_name_values or None,
+        sexo_values=sexo_values or None,
+        enlace_values=enlace_values or None,
     )
 
     paginator = Paginator(prospects, 10)
@@ -141,6 +144,8 @@ def prospect_export_excel(request):
     origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
     identification_values = request.GET.getlist('identification_number')
     full_name_values = request.GET.getlist('full_name')
+    sexo_values = request.GET.getlist('sexo')
+    enlace_values = request.GET.getlist('enlace')
 
     qs = get_prospect_list_queryset(
         department_values=department_values or None,
@@ -148,6 +153,8 @@ def prospect_export_excel(request):
         origin_ids=origin_ids or None,
         identification_numbers=identification_values or None,
         full_name_values=full_name_values or None,
+        sexo_values=sexo_values or None,
+        enlace_values=enlace_values or None,
     )
 
     headers = [
@@ -167,6 +174,8 @@ def prospect_export_excel(request):
         'Puesto consultado',
         'Aceptación términos',
         'Autorización envío información',
+        'Sexo',
+        'Enlace',
         'Orígenes',
     ]
     wb = Workbook()
@@ -193,6 +202,8 @@ def prospect_export_excel(request):
             'Sí' if p.polling_station_consulted else 'No',
             'Sí' if p.accepted_terms else 'No',
             'Sí' if p.authorize_info_sending else 'No',
+            p.sexo or '',
+            p.enlace or '',
             origins_str,
         ]
         ws.append(row)
@@ -364,211 +375,49 @@ def prospect_delete(request, pk):
 def prospect_bulk_upload(request):
     """
     Vista para cargar prospectos de manera masiva desde un archivo CSV.
+    POST: valida el archivo, crea un BulkUploadJob, encola la tarea Celery y redirige con job_id.
+    GET con job_id: muestra estado (procesando) o resultados (completado/fallido).
+    GET sin job_id: muestra el formulario de subida.
     """
+    job_id = request.GET.get('job_id')
+    if job_id:
+        job = get_object_or_404(BulkUploadJob, pk=job_id, user=request.user)
+        if job.status == BulkUploadJob.STATUS_COMPLETED:
+            context = {
+                'form': BulkUploadForm(),
+                'results': job.result_json,
+                'job_id': job_id,
+            }
+            return render(request, 'voters/prospect_bulk_upload.html', context)
+        if job.status == BulkUploadJob.STATUS_FAILED:
+            messages.error(request, _('La carga falló: {}').format(job.error_message))
+            return redirect('voters:prospect_bulk_upload')
+        # pending o processing: mostrar "Procesando..." con recarga
+        context = {
+            'form': BulkUploadForm(),
+            'job_id': job_id,
+            'job_status': job.status,
+        }
+        return render(request, 'voters/prospect_bulk_upload.html', context)
+
     if request.method == 'POST':
         form = BulkUploadForm(request.POST, request.FILES)
         if form.is_valid():
             csv_file = form.cleaned_data['csv_file']
-            
-            # Leer el archivo CSV
-            try:
-                # Intentar leer con diferentes encodings
-                content = csv_file.read()
-                try:
-                    content_str = content.decode('utf-8-sig')  # UTF-8 con BOM
-                except UnicodeDecodeError:
-                    try:
-                        content_str = content.decode('utf-8')
-                    except UnicodeDecodeError:
-                        content_str = content.decode('latin-1')
-                
-                # Detectar el delimitador (punto y coma o coma)
-                # Leer las primeras líneas para detectar el delimitador más común
-                lines = content_str.split('\n')[:3]  # Primeras 3 líneas
-                semicolon_count = sum(line.count(';') for line in lines if line.strip())
-                comma_count = sum(line.count(',') for line in lines if line.strip())
-                
-                # Usar el delimitador que aparezca más veces
-                # Si ambos tienen la misma cantidad, preferir punto y coma
-                delimiter = ';' if semicolon_count >= comma_count else ','
-                
-                # Leer CSV con el delimitador detectado
-                csv_reader = csv.DictReader(io.StringIO(content_str), delimiter=delimiter)
-                
-                # Validar encabezados requeridos
-                required_headers = ['full_name', 'phone_number', 'origin']
-                optional_headers = ['identification_number']
-                if not csv_reader.fieldnames:
-                    messages.error(request, _('El archivo CSV está vacío o no tiene encabezados válidos.'))
-                    form = BulkUploadForm()
-                    return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
-                
-                if not all(header in csv_reader.fieldnames for header in required_headers):
-                    messages.error(request, _('El archivo CSV debe contener los siguientes encabezados: full_name, phone_number, origin. El campo identification_number es opcional.'))
-                    form = BulkUploadForm()
-                    return render(request, 'voters/prospect_bulk_upload.html', {'form': form})
-                
-                # Procesar cada fila
-                results = {
-                    'total': 0,
-                    'created': 0,
-                    'updated': 0,
-                    'errors': []
-                }
-                prospect_ids_to_process = []
-                
-                with transaction.atomic():
-                    for row_num, row in enumerate(csv_reader, start=2):  # Empezar en 2 (después del encabezado)
-                        results['total'] += 1
-                        row_errors = []
-                        
-                        # Validar campos obligatorios
-                        identification_number_raw = row.get('identification_number', '').strip()
-                        full_name = row.get('full_name', '').strip()
-                        phone_number = row.get('phone_number', '').strip()
-                        origin_name = row.get('origin', '').strip()
-                        
-                        # Normalizar identification_number: eliminar todos los caracteres no numéricos
-                        identification_number = None
-                        if identification_number_raw:
-                            identification_number_normalized = normalize_digits_only(identification_number_raw)
-                            identification_number = identification_number_normalized if identification_number_normalized else None
-                        if not full_name:
-                            row_errors.append(_('full_name es obligatorio'))
-                        if not origin_name:
-                            row_errors.append(_('origin es obligatorio'))
-                        
-                        if row_errors:
-                            results['errors'].append({
-                                'row': row_num,
-                                'identification_number': identification_number or '-',
-                                'errors': row_errors
-                            })
-                            continue
-                        
-                        # Validar y normalizar phone_number si existe
-                        normalized_phone = None
-                        if phone_number:
-                            try:
-                                normalized_phone = validate_and_normalize_phone(phone_number)
-                            except ValidationError as e:
-                                row_errors.append(str(e))
-                                results['errors'].append({
-                                    'row': row_num,
-                                    'identification_number': identification_number,
-                                    'errors': row_errors
-                                })
-                                continue
-                        
-                        try:
-                            # Buscar o crear el origin
-                            origin, created = OriginProspect.objects.get_or_create(
-                                name=origin_name,
-                                defaults={
-                                    'description': f'Origen creado desde carga masiva',
-                                    'is_active': True
-                                }
-                            )
-                            
-                            # Buscar si el prospecto ya existe
-                            prospect = None
-                            old_id = None
-                            
-                            if identification_number:
-                                # Si hay identification_number, buscar por ese campo
-                                try:
-                                    prospect = Prospect.objects.get(identification_number=identification_number)
-                                    old_id = prospect.identification_number
-                                except Prospect.DoesNotExist:
-                                    pass
-                            elif normalized_phone:
-                                # Si no hay identification_number pero hay phone_number, buscar por phone_number
-                                try:
-                                    prospect = Prospect.objects.filter(
-                                        phone_number=normalized_phone,
-                                        identification_number__isnull=True
-                                    ).first()
-                                    if prospect:
-                                        old_id = prospect.identification_number
-                                except Exception:
-                                    pass
-                            
-                            if prospect:
-                                # Prospecto existe: actualizar campos y agregar origin
-                                prospect.full_name = full_name
-                                if normalized_phone is not None:
-                                    prospect.phone_number = normalized_phone
-                                if identification_number:
-                                    prospect.identification_number = identification_number
-                                prospect.save()
-                                prospect.origins.add(origin)
-                                
-                                # Verificar y asociar WhatsAppAccount si hay match
-                                associate_whatsapp_account(prospect)
-                                
-                                # Recopilar ID para disparar tarea después de la transacción
-                                result = check_and_trigger_on_id_change(prospect, old_id, trigger_task=False)
-                                if result:
-                                    prospect_ids_to_process.append(result if isinstance(result, int) else prospect.id)
-                                else:
-                                    result2 = trigger_polling_station_consult(prospect, trigger_task=False)
-                                    if result2:
-                                        prospect_ids_to_process.append(result2 if isinstance(result2, int) else prospect.id)
-                                results['updated'] += 1
-                            else:
-                                # Prospecto no existe: crear nuevo
-                                prospect = Prospect.objects.create(
-                                    identification_number=identification_number,
-                                    full_name=full_name,
-                                    phone_number=normalized_phone,
-                                    created_by=request.user
-                                )
-                                prospect.origins.add(origin)
-                                
-                                # Verificar y asociar WhatsAppAccount si hay match
-                                associate_whatsapp_account(prospect)
-                                
-                                # Recopilar ID para disparar tarea después de la transacción
-                                if should_trigger_celery_task(prospect):
-                                    prospect_ids_to_process.append(prospect.id)
-                                results['created'] += 1
-                                
-                        except Exception as e:
-                            row_errors.append(str(e))
-                            results['errors'].append({
-                                'row': row_num,
-                                'identification_number': identification_number,
-                                'errors': row_errors
-                            })
-                
-                # Disparar tareas de Celery después de que la transacción se haya confirmado
-                for prospect_id in prospect_ids_to_process:
-                    process_prospect.delay(prospect_id)
-                
-                # Mostrar mensajes de resultado
-                if results['created'] > 0:
-                    messages.success(request, _('Se crearon {} prospectos exitosamente.').format(results['created']))
-                if results['updated'] > 0:
-                    messages.success(request, _('Se actualizaron {} prospectos exitosamente.').format(results['updated']))
-                if results['errors']:
-                    messages.warning(request, _('Se encontraron {} errores durante la carga.').format(len(results['errors'])))
-                
-                context = {
-                    'form': BulkUploadForm(),
-                    'results': results,
-                }
-                return render(request, 'voters/prospect_bulk_upload.html', context)
-                
-            except Exception as e:
-                messages.error(request, _('Error al procesar el archivo CSV: {}').format(str(e)))
-        else:
-            messages.error(request, _('Por favor, corrija los errores en el formulario.'))
+            job = BulkUploadJob.objects.create(
+                user=request.user,
+                file=csv_file,
+                status=BulkUploadJob.STATUS_PENDING,
+            )
+            process_bulk_upload.delay(job.id)
+            messages.success(request, _('La carga se está procesando. Esta página se actualizará con los resultados.'))
+            url = reverse('voters:prospect_bulk_upload') + '?job_id=' + str(job.id)
+            return redirect(url)
+        messages.error(request, _('Por favor, corrija los errores en el formulario.'))
     else:
         form = BulkUploadForm()
-    
-    context = {
-        'form': form,
-    }
+
+    context = {'form': form}
     return render(request, 'voters/prospect_bulk_upload.html', context)
 
 
@@ -578,10 +427,10 @@ def download_csv_template(request):
     Vista para descargar la plantilla CSV de ejemplo.
     """
     # Crear contenido CSV de ejemplo
-    csv_content = 'identification_number;full_name;phone_number;origin\n'
-    csv_content += '1234567890;Juan Pérez;3134000000;campaña_2024\n'
-    csv_content += '9876543210;María García;3201234567;redes_sociales\n'
-    csv_content += '5555555555;Carlos Rodríguez;;evento_publico\n'
+    csv_content = 'identification_number;full_name;phone_number;origin;sexo;enlace\n'
+    csv_content += '1234567890;Juan Pérez;3134000000;campaña_2024;;\n'
+    csv_content += '9876543210;María García;3201234567;redes_sociales,evento_publico;;\n'
+    csv_content += '5555555555;Carlos Rodríguez;;evento_publico;;\n'
     
     response = HttpResponse(csv_content, content_type='text/csv; charset=utf-8-sig')
     response['Content-Disposition'] = 'attachment; filename="plantilla_prospectos.csv"'
@@ -662,18 +511,22 @@ def sms_campaign(request):
     GET: muestra filtros, lista, textarea, contador y proveedor.
     POST: valida mensaje y filtros, encola tarea Celery para envío masivo.
     """
-    dept_choices, muni_choices, origin_choices = get_sms_filter_options()
+    dept_choices, muni_choices, origin_choices, sexo_choices, enlace_choices = get_sms_filter_options()
 
     if request.method == 'POST':
         department_values = request.POST.getlist('department')
         municipality_values = request.POST.getlist('municipality')
         origin_ids = [int(x) for x in request.POST.getlist('origin') if x.isdigit()]
         identification_values = request.POST.getlist('identification_number')
+        sexo_values = request.POST.getlist('sexo')
+        enlace_values = request.POST.getlist('enlace')
     else:
         department_values = request.GET.getlist('department')
         municipality_values = request.GET.getlist('municipality')
         origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
         identification_values = request.GET.getlist('identification_number')
+        sexo_values = request.GET.getlist('sexo')
+        enlace_values = request.GET.getlist('enlace')
 
     identification_choices = [(v, v) for v in identification_values if v and str(v).strip()]
     filter_form = SMSFilterForm(
@@ -682,6 +535,8 @@ def sms_campaign(request):
         municipality_choices=muni_choices,
         origin_choices=origin_choices,
         identification_choices=identification_choices,
+        sexo_choices=sexo_choices,
+        enlace_choices=enlace_choices,
     )
 
     qs = get_sms_prospects_queryset(
@@ -689,6 +544,8 @@ def sms_campaign(request):
         municipality_values=municipality_values or None,
         origin_ids=origin_ids or None,
         identification_numbers=identification_values or None,
+        sexo_values=sexo_values or None,
+        enlace_values=enlace_values or None,
     )
     prospects_with_phone = get_prospects_with_valid_phone(qs)
     message_count = len(prospects_with_phone)
@@ -734,5 +591,7 @@ def sms_campaign(request):
         'municipality_values': municipality_values,
         'origin_ids': origin_ids,
         'identification_values': identification_values,
+        'sexo_values': sexo_values,
+        'enlace_values': enlace_values,
     }
     return render(request, 'voters/sms_campaign.html', context)

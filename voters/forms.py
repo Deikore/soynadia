@@ -150,6 +150,24 @@ class ProspectListFilterForm(forms.Form):
         }),
         choices=[],
     )
+    sexo = forms.MultipleChoiceField(
+        label=_('Sexo'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
+    enlace = forms.MultipleChoiceField(
+        label=_('Enlace'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
 
     def __init__(self, *args, **kwargs):
         department_choices = kwargs.pop('department_choices', None)
@@ -157,6 +175,8 @@ class ProspectListFilterForm(forms.Form):
         origin_choices = kwargs.pop('origin_choices', None)
         identification_choices = kwargs.pop('identification_choices', None)
         full_name_choices = kwargs.pop('full_name_choices', None)
+        sexo_choices = kwargs.pop('sexo_choices', None)
+        enlace_choices = kwargs.pop('enlace_choices', None)
         super().__init__(*args, **kwargs)
         if department_choices is not None:
             self.fields['department'].choices = department_choices
@@ -168,6 +188,10 @@ class ProspectListFilterForm(forms.Form):
             self.fields['identification_number'].choices = identification_choices
         if full_name_choices is not None:
             self.fields['full_name'].choices = full_name_choices
+        if sexo_choices is not None:
+            self.fields['sexo'].choices = sexo_choices
+        if enlace_choices is not None:
+            self.fields['enlace'].choices = enlace_choices
 
 
 class BulkUploadForm(forms.Form):
@@ -176,7 +200,7 @@ class BulkUploadForm(forms.Form):
     """
     csv_file = forms.FileField(
         label=_('Archivo CSV'),
-        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number (opcional), full_name, phone_number, origin'),
+        help_text=_('Seleccione un archivo CSV delimitado por punto y coma (;) o coma (,) con los campos: identification_number (opcional), full_name, phone_number, origin (varios orígenes separados por coma)'),
         widget=forms.FileInput(attrs={
             'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
             'accept': '.csv'
@@ -244,12 +268,32 @@ class SMSFilterForm(forms.Form):
         }),
         choices=[],
     )
+    sexo = forms.MultipleChoiceField(
+        label=_('Sexo'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
+    enlace = forms.MultipleChoiceField(
+        label=_('Enlace'),
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent',
+            'size': '5',
+        }),
+        choices=[],
+    )
 
     def __init__(self, *args, **kwargs):
         department_choices = kwargs.pop('department_choices', None)
         municipality_choices = kwargs.pop('municipality_choices', None)
         origin_choices = kwargs.pop('origin_choices', None)
         identification_choices = kwargs.pop('identification_choices', None)
+        sexo_choices = kwargs.pop('sexo_choices', None)
+        enlace_choices = kwargs.pop('enlace_choices', None)
         super().__init__(*args, **kwargs)
         if department_choices is not None:
             self.fields['department'].choices = department_choices
@@ -259,3 +303,7 @@ class SMSFilterForm(forms.Form):
             self.fields['origin'].choices = origin_choices
         if identification_choices is not None:
             self.fields['identification_number'].choices = identification_choices
+        if sexo_choices is not None:
+            self.fields['sexo'].choices = sexo_choices
+        if enlace_choices is not None:
+            self.fields['enlace'].choices = enlace_choices

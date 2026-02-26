@@ -30,6 +30,14 @@
                     {{ filter_form.identification_number.label_tag }}
                     {{ filter_form.identification_number }}
                 </div>
+                <div>
+                    {{ filter_form.sexo.label_tag }}
+                    {{ filter_form.sexo }}
+                </div>
+                <div>
+                    {{ filter_form.enlace.label_tag }}
+                    {{ filter_form.enlace }}
+                </div>
                 <div class="lg:col-span-2">
                     {{ filter_form.full_name.label_tag }}
                     {{ filter_form.full_name }}
@@ -70,6 +78,8 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Municipio de votación</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Puesto Consultado</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">WhatsApp</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sexo</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enlace</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orígenes</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                     </tr>
@@ -133,6 +143,12 @@
                                 {% endif %}
                             {% endwith %}
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ prospect.sexo|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ prospect.enlace|default:"-" }}
+                        </td>
                         <td class="px-6 py-4 text-sm text-gray-500">
                             {% if prospect.origins.all %}
                                 <div class="flex flex-wrap gap-1">
@@ -179,7 +195,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="11" class="px-6 py-8 text-center">
+                        <td colspan="13" class="px-6 py-8 text-center">
                             <p class="text-gray-500">No se encontraron prospectos.</p>
                             <a href="{% url 'voters:prospect_create' %}" class="text-gray-700 hover:text-red-600 font-medium">
                                 Crear nuevo prospecto
@@ -372,6 +388,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var optsNombre = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba parte del nombre y pulse Enter', create: true };
     if (document.getElementById('id_full_name')) {
         new TomSelect('#id_full_name', optsNombre);
+    }
+    if (document.getElementById('id_sexo')) {
+        new TomSelect('#id_sexo', opts);
+    }
+    if (document.getElementById('id_enlace')) {
+        new TomSelect('#id_enlace', opts);
     }
 });
 </script>

@@ -65,8 +65,8 @@ def validate_and_normalize_phone(phone):
 
 def get_sms_filter_options():
     """
-    Devuelve opciones para los filtros de la campaña SMS: departamentos,
-    municipios y orígenes (valores distintos no vacíos en prospectos).
+    Devuelve opciones para los filtros de la campaña SMS y lista de prospectos:
+    departamentos, municipios, orígenes, sexo y enlace (valores distintos no vacíos).
     """
     departments = list(
         Prospect.objects.exclude(department__in=[None, ''])
@@ -83,17 +83,37 @@ def get_sms_filter_options():
     origins = list(
         OriginProspect.objects.filter(is_active=True).order_by('name').values_list('id', 'name')
     )
-    # Excluir valor literal "None" y cadenas vacías de las opciones
+    sexos = list(
+        Prospect.objects.exclude(sexo__in=[None, ''])
+        .values_list('sexo', flat=True)
+        .distinct()
+        .order_by('sexo')
+    )
+    enlaces = list(
+        Prospect.objects.exclude(enlace__in=[None, ''])
+        .values_list('enlace', flat=True)
+        .distinct()
+        .order_by('enlace')
+    )
     department_choices = [(d, d) for d in departments if d and str(d).strip() and str(d) != 'None']
     municipality_choices = [(m, m) for m in municipalities if m and str(m).strip() and str(m) != 'None']
     origin_choices = [(str(oid), name) for oid, name in origins]
-    return department_choices, municipality_choices, origin_choices
+    sexo_choices = [(s, s) for s in sexos if s and str(s).strip() and str(s) != 'None']
+    enlace_choices = [(e, e) for e in enlaces if e and str(e).strip() and str(e) != 'None']
+    return department_choices, municipality_choices, origin_choices, sexo_choices, enlace_choices
 
 
-def get_sms_prospects_queryset(department_values=None, municipality_values=None, origin_ids=None, identification_numbers=None):
+def get_sms_prospects_queryset(
+    department_values=None,
+    municipality_values=None,
+    origin_ids=None,
+    identification_numbers=None,
+    sexo_values=None,
+    enlace_values=None,
+):
     """
     Queryset de prospectos con teléfono no vacío y filtros opcionales por
-    departamento, municipio, origen y número de cédula (múltiples valores).
+    departamento, municipio, origen, número de cédula, sexo y enlace.
     """
     qs = Prospect.objects.exclude(phone_number__in=[None, '']).exclude(phone_number='')
     if department_values:
@@ -104,6 +124,10 @@ def get_sms_prospects_queryset(department_values=None, municipality_values=None,
         qs = qs.filter(origins__id__in=origin_ids).distinct()
     if identification_numbers:
         qs = qs.filter(identification_number__in=identification_numbers)
+    if sexo_values:
+        qs = qs.filter(sexo__in=sexo_values)
+    if enlace_values:
+        qs = qs.filter(enlace__in=enlace_values)
     return qs.order_by('full_name')
 
 
@@ -113,6 +137,8 @@ def get_prospect_list_queryset(
     origin_ids=None,
     identification_numbers=None,
     full_name_values=None,
+    sexo_values=None,
+    enlace_values=None,
 ):
     """
     Queryset de prospectos para la lista y exportación, con filtros opcionales.
@@ -138,6 +164,10 @@ def get_prospect_list_queryset(
             for v in stripped:
                 q |= Q(full_name__icontains=v)
             qs = qs.filter(q)
+    if sexo_values:
+        qs = qs.filter(sexo__in=sexo_values)
+    if enlace_values:
+        qs = qs.filter(enlace__in=enlace_values)
     return qs.order_by('-created_at')
 
 

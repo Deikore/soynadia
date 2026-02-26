@@ -92,6 +92,18 @@ class Prospect(models.Model):
         blank=True,
         help_text=_('Autorización de envío de información desde formulario embebido'),
     )
+    sexo = models.CharField(
+        _('sexo'),
+        max_length=50,
+        blank=True,
+        null=True,
+    )
+    enlace = models.CharField(
+        _('enlace'),
+        max_length=500,
+        blank=True,
+        null=True,
+    )
 
     class Meta:
         verbose_name = _('prospecto')
@@ -357,3 +369,57 @@ class WhatsAppMessage(models.Model):
 
     def __str__(self):
         return f'{self.from_number} - {self.event_type} - {self.received_at.strftime("%Y-%m-%d %H:%M")}'
+
+
+class BulkUploadJob(models.Model):
+    """
+    Job de carga masiva de prospectos. El archivo se guarda y una tarea Celery
+    procesa el CSV en segundo plano, actualizando result_json y status.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
+    STATUS_COMPLETED = 'completed'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, _('pendiente')),
+        (STATUS_PROCESSING, _('procesando')),
+        (STATUS_COMPLETED, _('completado')),
+        (STATUS_FAILED, _('fallido')),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        verbose_name=_('usuario'),
+        related_name='bulk_upload_jobs',
+    )
+    file = models.FileField(
+        _('archivo'),
+        upload_to='bulk_uploads/%Y/%m/%d/',
+    )
+    status = models.CharField(
+        _('estado'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    result_json = models.JSONField(
+        _('resultado'),
+        null=True,
+        blank=True,
+        help_text=_('total, created, updated, errors'),
+    )
+    error_message = models.TextField(
+        _('mensaje de error'),
+        blank=True,
+    )
+    created_at = models.DateTimeField(_('fecha de creación'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('job de carga masiva')
+        verbose_name_plural = _('jobs de carga masiva')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'BulkUploadJob {self.id} - {self.status} - {self.created_at}'
