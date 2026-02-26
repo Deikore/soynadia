@@ -75,6 +75,20 @@ class VotingPlaceQuery:
             path = c.get('path') or '/'
             self.session.cookies.set(c['name'], c['value'], domain=domain, path=path)
 
+    def _navigate_and_get_soup(self, page, timeout_ms=20000):
+        """Navega a la página de identificación y devuelve el soup. Usado dentro de un contexto Playwright abierto."""
+        try:
+            try:
+                page.goto(f'{self.base_url}/', timeout=timeout_ms, wait_until='domcontentloaded')
+            except Exception:
+                pass
+            page.goto(self.url, timeout=timeout_ms, wait_until='domcontentloaded')
+            html = page.content()
+            return BeautifulSoup(html, 'html.parser')
+        except Exception as e:
+            self._log(f"✗ Error al navegar: {e}", 'error')
+            return None
+
     def get_page(self):
         """Carga la página de identificación con Playwright headless (anti-detección)."""
         timeout_ms = 20000
@@ -95,18 +109,14 @@ class VotingPlaceQuery:
                 Stealth().apply_stealth_sync(context)
                 page = context.new_page()
 
-                try:
-                    page.goto(f'{self.base_url}/', timeout=timeout_ms, wait_until='domcontentloaded')
-                except Exception:
-                    pass
+                soup = self._navigate_and_get_soup(page, timeout_ms)
+                if not soup:
+                    return None, None
 
-                page.goto(self.url, timeout=timeout_ms, wait_until='domcontentloaded')
-                html = page.content()
                 cookies = context.cookies()
                 browser.close()
 
             self._apply_playwright_cookies_to_session(cookies)
-            soup = BeautifulSoup(html, 'html.parser')
             self._log("✓ Página cargada exitosamente (Playwright)")
             return soup, None
 
@@ -253,82 +263,114 @@ class VotingPlaceQuery:
         return DEFAULT_ELECTION_CODE
     
     def query(self, id_number, election_id=-1):
+        timeout_ms = 20000
+        user_agent = self.session.headers.get('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
         try:
             self._log(f"\n{'='*60}")
             self._log(f"Consultando lugar de votación para cédula: {id_number}")
             self._log(f"{'='*60}\n")
-            
-            soup, _ = self.get_page()
-            if not soup:
-                return None
-            
-            self._log("⏳ Obteniendo opciones de elección...")
-            opciones = self.get_election_options(soup)
-            election_code = self._resolve_election_code(election_id, opciones)
-            if opciones:
-                self._log(f"✓ Encontradas {len(opciones)} opciones de elección")
-                self._log(f"   Usando election_code: {election_code} ({opciones.get(election_code, 'por defecto')})")
-            else:
-                self._log(f"   Usando election_code por defecto: {election_code}")
-            
-            self._log("⏳ Detectando captcha...")
-            sitekey = self.get_sitekey(soup) or DEFAULT_SITEKEY
-            if not sitekey:
-                self._log("✗ No se puede continuar sin sitekey", 'error')
-                return {'exito': False, 'error': 'No se pudo detectar el captcha en la página'}
-            self._log(f"✓ Sitekey: {sitekey[:20]}...")
-            
-            captcha_result = self.solve_captcha(sitekey)
-            if isinstance(captcha_result, dict):
-                if captcha_result.get('error') == 'insufficient_balance':
-                    return {
-                        'exito': False,
-                        'error': captcha_result.get('message', 'El servicio 2Captcha no tiene saldo suficiente')
-                    }
-                if captcha_result.get('error'):
-                    return {
-                        'exito': False,
-                        'error': captcha_result.get('message', 'Error al resolver el captcha')
-                    }
-            
-            token_captcha = captcha_result if isinstance(captcha_result, str) else None
-            if not token_captcha:
-                return {'exito': False, 'error': 'No se pudo resolver el captcha'}
-            
-            self._log("⏳ Enviando consulta a la API Infovotantes...")
-            self._log(f"   identification={id_number}, election_code={election_code}")
-            
-            payload = {
-                "identification": str(id_number),
-                "identification_type": "CC",
-                "election_code": election_code,
-                "platform": "web",
-                "module": "polling_place"
-            }
-            headers_post = {
-                "Authorization": f"Bearer {token_captcha}",
-                "Content-Type": "application/json",
-                "Accept": "application/json, text/plain, */*",
-                "Origin": "https://eleccionescolombia.registraduria.gov.co",
-            }
-            
-            response = self.session.post(
-                self.api_url,
-                json=payload,
-                headers=headers_post,
-                timeout=30,
-                allow_redirects=True
-            )
-            
-            response.raise_for_status()
-            self._log(f"✓ Respuesta recibida (status: {response.status_code})")
-            
+
+            self._log("⏳ Cargando página con Playwright (headless)...")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    ignore_default_args=['--enable-automation'],
+                    args=['--disable-blink-features=AutomationControlled'],
+                )
+                context = browser.new_context(
+                    locale='es-CO',
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent=user_agent,
+                )
+                Stealth().apply_stealth_sync(context)
+                page = context.new_page()
+
+                soup = self._navigate_and_get_soup(page, timeout_ms)
+                if not soup:
+                    return None
+
+                self._log("✓ Página cargada exitosamente (Playwright)")
+
+                self._log("⏳ Obteniendo opciones de elección...")
+                opciones = self.get_election_options(soup)
+                election_code = self._resolve_election_code(election_id, opciones)
+                if opciones:
+                    self._log(f"✓ Encontradas {len(opciones)} opciones de elección")
+                    self._log(f"   Usando election_code: {election_code} ({opciones.get(election_code, 'por defecto')})")
+                else:
+                    self._log(f"   Usando election_code por defecto: {election_code}")
+
+                self._log("⏳ Detectando captcha...")
+                sitekey = self.get_sitekey(soup) or DEFAULT_SITEKEY
+                if not sitekey:
+                    self._log("✗ No se puede continuar sin sitekey", 'error')
+                    return {'exito': False, 'error': 'No se pudo detectar el captcha en la página'}
+                self._log(f"✓ Sitekey: {sitekey[:20]}...")
+
+                captcha_result = self.solve_captcha(sitekey)
+                if isinstance(captcha_result, dict):
+                    if captcha_result.get('error') == 'insufficient_balance':
+                        return {
+                            'exito': False,
+                            'error': captcha_result.get('message', 'El servicio 2Captcha no tiene saldo suficiente')
+                        }
+                    if captcha_result.get('error'):
+                        return {
+                            'exito': False,
+                            'error': captcha_result.get('message', 'Error al resolver el captcha')
+                        }
+
+                token_captcha = captcha_result if isinstance(captcha_result, str) else None
+                if not token_captcha:
+                    return {'exito': False, 'error': 'No se pudo resolver el captcha'}
+
+                self._log("⏳ Enviando consulta a la API Infovotantes (desde el navegador)...")
+                self._log(f"   identification={id_number}, election_code={election_code}")
+
+                payload = {
+                    "identification": str(id_number),
+                    "identification_type": "CC",
+                    "election_code": election_code,
+                    "platform": "web",
+                    "module": "polling_place"
+                }
+
+                fetch_result = page.evaluate(
+                    """async (args) => {
+                        const r = await fetch(args.apiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + args.token,
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json, text/plain, */*'
+                            },
+                            body: JSON.stringify(args.payload)
+                        });
+                        const body = await r.text();
+                        return JSON.stringify({ status: r.status, body: body });
+                    }""",
+                    {"apiUrl": self.api_url, "token": token_captcha, "payload": payload}
+                )
+
+                browser.close()
+
+            try:
+                result = json.loads(fetch_result)
+            except (json.JSONDecodeError, TypeError):
+                self._log("✗ No se pudo interpretar la respuesta del fetch", 'error')
+                return {'exito': False, 'error': f'Error al llamar a la API desde el navegador: {str(fetch_result)[:300]}'}
+
+            status = result.get("status", 0)
+            response_text = result.get("body", "")
+
+            if status >= 400:
+                self._log(f"✗ API respondió con status {status}", 'error')
+                return {'exito': False, 'error': f'La API respondió con error {status}: {response_text[:200]}'}
+
+            self._log("✓ Respuesta recibida")
             self._log("⏳ Extrayendo información...")
-            return self.extract_information(response.text)
-            
-        except requests.exceptions.RequestException as e:
-            self._log(f"\n✗ Error de conexión: {e}", 'error')
-            return {'exito': False, 'error': f'Error de conexión: {str(e)}'}
+            return self.extract_information(response_text)
+
         except Exception as e:
             self._log(f"\n✗ Error durante la consulta: {e}", 'error')
             import traceback
