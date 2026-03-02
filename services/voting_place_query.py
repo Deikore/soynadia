@@ -75,8 +75,27 @@ class VotingPlaceQuery:
             path = c.get('path') or '/'
             self.session.cookies.set(c['name'], c['value'], domain=domain, path=path)
 
+    def _get_playwright_proxy(self):
+        """Devuelve el dict de proxy para Playwright. Solo server = proxy sin auth (ej. local); server+user+pass = con auth."""
+        server = (
+            (os.getenv("PLAYWRIGHT_PROXY_SERVER") or os.getenv("OXYLABS_PROXY_SERVER")) or ""
+        ).strip()
+        username = (
+            (os.getenv("PLAYWRIGHT_PROXY_USERNAME") or os.getenv("OXYLABS_PROXY_USERNAME"))
+            or ""
+        ).strip()
+        password = (
+            (os.getenv("PLAYWRIGHT_PROXY_PASSWORD") or os.getenv("OXYLABS_PROXY_PASSWORD"))
+            or ""
+        ).strip()
+        if not server:
+            return None
+        if username and password:
+            return {"server": server, "username": username, "password": password}
+        return {"server": server}
+
     def _navigate_and_get_soup(self, page, timeout_ms=20000):
-        """Navega a la página de identificación y devuelve el soup. Usado dentro de un contexto Playwright abierto."""
+        """Navega a la página de identificación y devuelve (soup, None) o (None, error_message)."""
         try:
             try:
                 page.goto(f'{self.base_url}/', timeout=timeout_ms, wait_until='domcontentloaded')
@@ -84,16 +103,35 @@ class VotingPlaceQuery:
                 pass
             page.goto(self.url, timeout=timeout_ms, wait_until='domcontentloaded')
             html = page.content()
-            return BeautifulSoup(html, 'html.parser')
+            return BeautifulSoup(html, 'html.parser'), None
         except Exception as e:
+            err_msg = str(e)
             self._log(f"✗ Error al navegar: {e}", 'error')
-            return None
+            return None, err_msg
+
+    def _log_proxy_troubleshoot(self, response_status=None):
+        """Sugerencia cuando falla la navegación con proxy."""
+        if response_status == 403:
+            self._log(
+                "El proxy devolvió 403 (restricted target). Algunos proveedores (p. ej. Oxylabs) "
+                "bloquean dominios .gov: contacta a soporte para solicitar acceso a este sitio.",
+                "warning",
+            )
+        else:
+            self._log(
+                "Revisa PLAYWRIGHT_PROXY_* o OXYLABS_PROXY_* (server, usuario, contraseña). "
+                "Oxylabs: usuario customer-TU_USUARIO-cc-CO. 2Captcha: usuario desde api.2captcha.com/proxy?key=API_KEY.",
+                "warning",
+            )
 
     def get_page(self):
         """Carga la página de identificación con Playwright headless (anti-detección)."""
-        timeout_ms = 20000
+        proxy_config = self._get_playwright_proxy()
+        timeout_ms = 60000 if proxy_config else 20000
         user_agent = self.session.headers.get('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
         try:
+            if proxy_config:
+                self._log("Usando proxy (Playwright)")
             self._log("⏳ Cargando página con Playwright (headless)...")
             with sync_playwright() as p:
                 browser = p.chromium.launch(
@@ -101,16 +139,22 @@ class VotingPlaceQuery:
                     ignore_default_args=['--enable-automation'],
                     args=['--disable-blink-features=AutomationControlled'],
                 )
-                context = browser.new_context(
-                    locale='es-CO',
-                    viewport={'width': 1920, 'height': 1080},
-                    user_agent=user_agent,
-                )
+                context_kw = {
+                    "locale": "es-CO",
+                    "viewport": {"width": 1920, "height": 1080},
+                    "user_agent": user_agent,
+                }
+                if proxy_config:
+                    context_kw["proxy"] = proxy_config
+                context = browser.new_context(**context_kw)
                 Stealth().apply_stealth_sync(context)
                 page = context.new_page()
 
-                soup = self._navigate_and_get_soup(page, timeout_ms)
+                soup, nav_error = self._navigate_and_get_soup(page, timeout_ms)
                 if not soup:
+                    if proxy_config:
+                        status = 403 if nav_error and ('403' in nav_error or 'restricted' in nav_error.lower()) else None
+                        self._log_proxy_troubleshoot(response_status=status)
                     return None, None
 
                 cookies = context.cookies()
@@ -263,13 +307,16 @@ class VotingPlaceQuery:
         return DEFAULT_ELECTION_CODE
     
     def query(self, id_number, election_id=-1):
-        timeout_ms = 20000
+        proxy_config = self._get_playwright_proxy()
+        timeout_ms = 60000 if proxy_config else 20000
         user_agent = self.session.headers.get('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
         try:
             self._log(f"\n{'='*60}")
             self._log(f"Consultando lugar de votación para cédula: {id_number}")
             self._log(f"{'='*60}\n")
 
+            if proxy_config:
+                self._log("Usando proxy (Playwright)")
             self._log("⏳ Cargando página con Playwright (headless)...")
             with sync_playwright() as p:
                 browser = p.chromium.launch(
@@ -277,16 +324,22 @@ class VotingPlaceQuery:
                     ignore_default_args=['--enable-automation'],
                     args=['--disable-blink-features=AutomationControlled'],
                 )
-                context = browser.new_context(
-                    locale='es-CO',
-                    viewport={'width': 1920, 'height': 1080},
-                    user_agent=user_agent,
-                )
+                context_kw = {
+                    "locale": "es-CO",
+                    "viewport": {"width": 1920, "height": 1080},
+                    "user_agent": user_agent,
+                }
+                if proxy_config:
+                    context_kw["proxy"] = proxy_config
+                context = browser.new_context(**context_kw)
                 Stealth().apply_stealth_sync(context)
                 page = context.new_page()
 
-                soup = self._navigate_and_get_soup(page, timeout_ms)
+                soup, nav_error = self._navigate_and_get_soup(page, timeout_ms)
                 if not soup:
+                    if proxy_config:
+                        status = 403 if nav_error and ('403' in nav_error or 'restricted' in nav_error.lower()) else None
+                        self._log_proxy_troubleshoot(response_status=status)
                     return None
 
                 self._log("✓ Página cargada exitosamente (Playwright)")
