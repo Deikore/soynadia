@@ -1,3 +1,4 @@
+import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required, permission_required
@@ -22,6 +23,24 @@ from .utils import (
 )
 from .tasks import process_prospect, process_bulk_upload
 from .sms_providers import get_provider, get_available_providers, get_provider_ids_with_bulk_export
+
+# Patrón para detectar emojis (rangos Unicode comunes de emojis y símbolos similares).
+_SMS_EMOJI_PATTERN = re.compile(
+    '['
+    '\U0001F300-\U0001F9FF'  # Misc Symbols and Pictographs, Supplemental Symbols
+    '\U0001F600-\U0001F64F'  # Emoticons
+    '\U0001F1E0-\U0001F1FF'  # Flags
+    '\u2600-\u26FF'          # Misc symbols
+    '\u2700-\u27BF'          # Dingbats
+    '\uFE00-\uFE0F'          # Variation selectors
+    ']+',
+    flags=re.UNICODE,
+)
+
+
+def _sms_contains_emoji(text):
+    """Devuelve True si el texto contiene emojis (para validación de SMS)."""
+    return bool(_SMS_EMOJI_PATTERN.search(text))
 
 
 @login_required
@@ -574,6 +593,10 @@ def sms_campaign(request):
         provider_id = request.POST.get('provider_id') or 'onurix'
         if not body:
             messages.error(request, _('El mensaje no puede estar vacío.'))
+        elif len(body) > 160:
+            messages.error(request, _('El mensaje no puede superar 160 caracteres.'))
+        elif _sms_contains_emoji(body):
+            messages.error(request, _('El mensaje no puede contener emojis.'))
         elif message_count == 0:
             messages.error(request, _('No hay prospectos con teléfono válido para los filtros seleccionados.'))
         else:
