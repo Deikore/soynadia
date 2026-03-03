@@ -157,6 +157,28 @@ def process_prospect(prospect_id):
 
 
 @shared_task
+def enqueue_process_prospect_pending():
+    """
+    Obtiene todos los prospectos con número de identificación y sin consulta de puesto,
+    y encola process_prospect para cada uno. Pensada para ser invocada desde el admin
+    cuando hay muchos registros pendientes.
+    """
+    pending = Prospect.objects.filter(
+        identification_number__isnull=False
+    ).exclude(
+        identification_number=''
+    ).filter(
+        polling_station_consulted=False
+    )
+    enqueued = 0
+    for prospect in pending:
+        process_prospect.delay(prospect.id)
+        enqueued += 1
+    logger.info(f"Encolados {enqueued} prospectos pendientes para process_prospect.")
+    return enqueued
+
+
+@shared_task
 def process_bulk_upload(job_id):
     """
     Procesa un archivo CSV de carga masiva de prospectos en segundo plano.

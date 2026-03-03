@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 from django.utils.translation import gettext_lazy as _
 from .models import Prospect, ApiKey, OriginProspect, WhatsAppMessage, WhatsAppAccount
 from .utils import should_trigger_celery_task, check_and_trigger_on_id_change, trigger_polling_station_consult, associate_whatsapp_account
-from .tasks import process_prospect
+from .tasks import process_prospect, enqueue_process_prospect_pending as enqueue_pending_task
 
 
 @admin.register(OriginProspect)
@@ -62,29 +62,12 @@ def run_polling_station_consult(self, request, queryset):
 
 @admin.action(description=_('Encolar process_prospect (pendientes de consulta)'))
 def enqueue_process_prospect_pending(self, request, queryset):
-    pending = self.model.objects.filter(
-        identification_number__isnull=False
-    ).exclude(
-        identification_number=''
-    ).filter(
-        polling_station_consulted=False
+    enqueue_pending_task.delay()
+    self.message_user(
+        request,
+        _('Se ha encolado la tarea. Los prospectos pendientes de consulta se irán encolando en segundo plano.'),
+        messages.SUCCESS,
     )
-    enqueued = 0
-    for prospect in pending:
-        process_prospect.delay(prospect.id)
-        enqueued += 1
-    if enqueued:
-        self.message_user(
-            request,
-            _('Se encolaron %(n)s prospectos para process_prospect (pendientes de consulta).') % {'n': enqueued},
-            messages.SUCCESS,
-        )
-    else:
-        self.message_user(
-            request,
-            _('No hay prospectos pendientes de consulta (con número de identificación y puesto no consultado).'),
-            messages.WARNING,
-        )
 
 
 @admin.register(Prospect)
