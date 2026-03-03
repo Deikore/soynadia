@@ -95,13 +95,20 @@ class VotingPlaceQuery:
         return {"server": server}
 
     def _navigate_and_get_soup(self, page, timeout_ms=20000):
-        """Navega a la página de identificación y devuelve (soup, None) o (None, error_message)."""
+        """Navega a la página de identificación y devuelve (soup, None) o (None, error_message).
+        Si la carga devuelve HTTP 4xx/5xx (p. ej. 403), no se devuelve soup para evitar consumir
+        captcha en una página de error."""
         try:
             try:
                 page.goto(f'{self.base_url}/', timeout=timeout_ms, wait_until='domcontentloaded')
             except Exception:
                 pass
-            page.goto(self.url, timeout=timeout_ms, wait_until='domcontentloaded')
+            response = page.goto(self.url, timeout=timeout_ms, wait_until='domcontentloaded')
+            if not response or response.status >= 400:
+                status = getattr(response, 'status', None) if response else None
+                err = f"HTTP {status}" if status else "carga fallida"
+                self._log(f"✗ La página devolvió error: {err}", 'error')
+                return None, err
             html = page.content()
             return BeautifulSoup(html, 'html.parser'), None
         except Exception as e:
