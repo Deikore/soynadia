@@ -20,5 +20,6 @@ urlpatterns = [
     path('chat/', chat_views.chat_conversation_list, name='chat_list'),
     path('chat/<int:account_id>/', chat_views.chat_conversation_detail, name='chat_conversation'),
     path('sms/', views.sms_campaign, name='sms_campaign'),
+    path('sms/onurix-balance/', views.sms_onurix_balance, name='sms_onurix_balance'),
     path('sms/bulk-export/<str:provider_id>/', views.download_sms_bulk_export, name='download_sms_bulk_export'),
 ]

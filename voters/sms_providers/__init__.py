@@ -14,6 +14,9 @@ SMS_PROVIDER_REGISTRY = {
     'twilio': ('Twilio', TwilioSMSProvider, None),
 }
 
+# Proveedores visibles en la sección SMS (Twilio desactivado; solo Onurix).
+SMS_PROVIDERS_ENABLED = ['onurix']
+
 
 def get_provider(provider_id):
     """
@@ -30,12 +33,22 @@ def get_provider(provider_id):
 def get_available_providers():
     """
     Devuelve lista de (provider_id, display_label) para el selector en la UI.
+    Solo incluye proveedores en SMS_PROVIDERS_ENABLED.
     """
-    return [(pid, label) for pid, (label, _, _) in SMS_PROVIDER_REGISTRY.items()]
+    return [
+        (pid, label)
+        for pid, (label, _, _) in SMS_PROVIDER_REGISTRY.items()
+        if pid in SMS_PROVIDERS_ENABLED
+    ]
 
 
 def get_provider_ids_with_bulk_export():
     """
     Devuelve la lista de provider_id que tienen descarga masiva (bulk_export_slug no nulo).
+    Solo incluye proveedores en SMS_PROVIDERS_ENABLED.
     """
-    return [pid for pid, (_, _, slug) in SMS_PROVIDER_REGISTRY.items() if slug is not None]
+    return [
+        pid
+        for pid, (_, _, slug) in SMS_PROVIDER_REGISTRY.items()
+        if slug is not None and pid in SMS_PROVIDERS_ENABLED
+    ]

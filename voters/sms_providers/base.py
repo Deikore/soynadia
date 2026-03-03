@@ -51,3 +51,15 @@ class BaseSMSProvider(ABC):
                 failed += 1
                 errors.append(f"{phone}: {result}")
         return sent, failed, errors
+
+    def get_balance(self):
+        """
+        Consulta el saldo/créditos disponibles del proveedor (opcional).
+        No es abstracto: proveedores que no soporten consulta de saldo no lo implementan.
+
+        Returns:
+            tuple: (success: bool, balance: int | None)
+                - (True, N) si se pudo obtener el saldo y hay N créditos.
+                - (False, None) si no se pudo obtener o el proveedor no lo soporta.
+        """
+        return False, None

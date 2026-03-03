@@ -6,7 +6,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import HttpResponse, HttpResponseBadRequest, Http404
+from django.http import HttpResponse, HttpResponseBadRequest, Http404, JsonResponse
 from .models import Prospect, OriginProspect, BulkUploadJob
 from .forms import ProspectForm, ProspectSearchForm, ProspectListFilterForm, BulkUploadForm, SMSFilterForm
 from .utils import (
@@ -504,6 +504,25 @@ def download_sms_bulk_export(request, provider_id):
 
 @login_required
 @permission_required('voters.can_view_sms', raise_exception=True)
+def sms_onurix_balance(request):
+    """
+    GET: devuelve el saldo de créditos Onurix en JSON para la confirmación de envío SMS.
+    """
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'error': 'Método no permitido'}, status=405)
+    provider = get_provider('onurix')
+    if not provider:
+        return JsonResponse({'success': False, 'error': 'Proveedor Onurix no disponible'}, status=400)
+    if not hasattr(provider, 'get_balance'):
+        return JsonResponse({'success': False, 'error': 'Consulta de saldo no disponible'}, status=400)
+    success, balance = provider.get_balance()
+    if not success or balance is None:
+        return JsonResponse({'success': False, 'error': 'No se pudo verificar el saldo'}, status=200)
+    return JsonResponse({'success': True, 'balance': balance})
+
+
+@login_required
+@permission_required('voters.can_view_sms', raise_exception=True)
 def sms_campaign(request):
     """
     Vista principal de la campaña SMS: filtros (departamento, municipio, origen),
@@ -562,17 +581,20 @@ def sms_campaign(request):
             if not provider:
                 messages.error(request, _('Proveedor de SMS no válido.'))
             else:
-                from .tasks import send_single_sms
-                for prospect, phone in prospects_with_phone:
-                    send_single_sms.delay(
-                        provider_id=provider_id,
-                        prospect_id=prospect.id,
-                        phone_normalized=phone,
-                        body=body,
-                    )
+                from .tasks import send_sms_campaign
+                send_sms_campaign.delay(
+                    provider_id=provider_id,
+                    body=body,
+                    department_values=department_values or None,
+                    municipality_values=municipality_values or None,
+                    origin_ids=origin_ids or None,
+                    identification_numbers=identification_values or None,
+                    sexo_values=sexo_values or None,
+                    enlace_values=enlace_values or None,
+                )
                 messages.success(
                     request,
-                    _('Se han encolado %(n)s mensajes para envío. El envío se realizará en segundo plano.') % {'n': message_count},
+                    _('Se ha encolado el envío de %(n)s mensajes. El envío se realizará en segundo plano.') % {'n': message_count},
                 )
                 return redirect('voters:sms_campaign')
 

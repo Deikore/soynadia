@@ -53,7 +53,7 @@
     <!-- Panel de mensaje y envío -->
     <div class="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Mensaje SMS</h2>
-        <form method="post" action="{% url 'voters:sms_campaign' %}" class="space-y-4">
+        <form id="sms-send-form" method="post" action="{% url 'voters:sms_campaign' %}" class="space-y-4">
             {% csrf_token %}
             {% for v in department_values %}
             <input type="hidden" name="department" value="{{ v }}">
@@ -66,6 +66,12 @@
             {% endfor %}
             {% for v in identification_values %}
             <input type="hidden" name="identification_number" value="{{ v }}">
+            {% endfor %}
+            {% for v in sexo_values %}
+            <input type="hidden" name="sexo" value="{{ v }}">
+            {% endfor %}
+            {% for v in enlace_values %}
+            <input type="hidden" name="enlace" value="{{ v }}">
             {% endfor %}
             <div>
                 <label for="message_body" class="block text-sm font-medium text-gray-700 mb-1">Texto del mensaje</label>
@@ -221,6 +227,33 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Modal confirmación envío SMS -->
+    <div id="sms-confirm-modal" class="fixed inset-0 z-50 hidden" aria-modal="true">
+        <div class="fixed inset-0 bg-black/50" id="sms-confirm-modal-backdrop"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Confirmar envío de SMS</h3>
+                </div>
+                <div class="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+                    <p class="text-sm text-gray-700"><strong>Mensaje a enviar:</strong></p>
+                    <div id="sms-confirm-message-preview" class="p-3 bg-gray-50 rounded-lg text-sm text-gray-800 whitespace-pre-wrap border border-gray-200"></div>
+                    <p class="text-sm text-gray-700"><strong>Cantidad total de SMS a enviar:</strong> <span id="sms-confirm-count" class="text-red-600 font-semibold">0</span></p>
+                    <div id="sms-confirm-balance-wrap" class="text-sm text-gray-600">
+                        <span id="sms-confirm-balance-msg">Verificando créditos disponibles...</span>
+                    </div>
+                    <div id="sms-confirm-error" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800"></div>
+                </div>
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                    <button type="button" id="sms-confirm-cancel" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancelar</button>
+                    <button type="button" id="sms-confirm-submit" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        Confirmar envío
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
 <script>
@@ -272,6 +305,78 @@ document.addEventListener('DOMContentLoaded', function() {
         bulkForm.addEventListener('submit', function() {
             var msg = document.getElementById('message_body');
             document.getElementById('bulk_export_message_body').value = msg ? msg.value : '';
+        });
+    }
+
+    // Confirmación de envío SMS: modal + consulta de saldo Onurix
+    var smsSendForm = document.getElementById('sms-send-form');
+    var smsModal = document.getElementById('sms-confirm-modal');
+    var smsModalBackdrop = document.getElementById('sms-confirm-modal-backdrop');
+    var smsConfirmCancel = document.getElementById('sms-confirm-cancel');
+    var smsConfirmSubmit = document.getElementById('sms-confirm-submit');
+    var smsConfirmMessagePreview = document.getElementById('sms-confirm-message-preview');
+    var smsConfirmCount = document.getElementById('sms-confirm-count');
+    var smsConfirmBalanceMsg = document.getElementById('sms-confirm-balance-msg');
+    var smsConfirmError = document.getElementById('sms-confirm-error');
+    var smsBalanceUrl = '{% url "voters:sms_onurix_balance" %}';
+    var messageCount = {{ message_count|default:0 }};
+    var smsAllowSubmit = false;
+
+    function showSmsModal() {
+        if (!smsModal) return;
+        var bodyEl = document.getElementById('message_body');
+        var msg = bodyEl ? bodyEl.value : '';
+        smsConfirmMessagePreview.textContent = msg || '(mensaje vacío)';
+        smsConfirmCount.textContent = messageCount;
+        smsConfirmBalanceMsg.textContent = 'Verificando créditos disponibles...';
+        smsConfirmSubmit.disabled = true;
+        smsConfirmError.classList.add('hidden');
+        smsConfirmError.textContent = '';
+        smsModal.classList.remove('hidden');
+        fetch(smsBalanceUrl, { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && typeof data.balance === 'number') {
+                    if (data.balance < messageCount) {
+                        smsConfirmBalanceMsg.textContent = 'Créditos insuficientes. Tiene ' + data.balance + ' créditos y desea enviar ' + messageCount + ' SMS.';
+                        smsConfirmError.textContent = 'No hay créditos suficientes para enviar ' + messageCount + ' SMS. Saldo disponible: ' + data.balance + '.';
+                        smsConfirmError.classList.remove('hidden');
+                        smsConfirmSubmit.disabled = true;
+                    } else {
+                        smsConfirmBalanceMsg.textContent = 'Créditos disponibles: ' + data.balance + '. Suficientes para enviar ' + messageCount + ' SMS.';
+                        smsConfirmSubmit.disabled = false;
+                    }
+                } else {
+                    smsConfirmBalanceMsg.textContent = 'No se pudo verificar el saldo. Puede intentar enviar bajo su responsabilidad.';
+                    smsConfirmSubmit.disabled = false;
+                }
+            })
+            .catch(function() {
+                smsConfirmBalanceMsg.textContent = 'No se pudo verificar el saldo. Puede intentar enviar bajo su responsabilidad.';
+                smsConfirmSubmit.disabled = false;
+            });
+    }
+
+    function hideSmsModal() {
+        if (smsModal) smsModal.classList.add('hidden');
+    }
+
+    if (smsSendForm) {
+        smsSendForm.addEventListener('submit', function(ev) {
+            if (smsAllowSubmit) return;
+            ev.preventDefault();
+            if (messageCount === 0) return;
+            showSmsModal();
+        });
+    }
+    if (smsConfirmCancel) smsConfirmCancel.addEventListener('click', hideSmsModal);
+    if (smsModalBackdrop) smsModalBackdrop.addEventListener('click', hideSmsModal);
+    if (smsConfirmSubmit) {
+        smsConfirmSubmit.addEventListener('click', function() {
+            if (smsConfirmSubmit.disabled) return;
+            smsAllowSubmit = true;
+            hideSmsModal();
+            if (smsSendForm) smsSendForm.submit();
         });
     }
 });

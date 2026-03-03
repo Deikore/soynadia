@@ -11,6 +11,7 @@ from .base import BaseSMSProvider
 logger = logging.getLogger(__name__)
 
 ONURIX_SEND_URL = 'https://www.onurix.com/api/v1/sms/send'
+ONURIX_BALANCE_URL = 'https://www.onurix.com/api/v1/balance'
 
 
 def _format_phone(phone_normalized):
@@ -86,3 +87,40 @@ class OnurixSMSProvider(BaseSMSProvider):
         except requests.RequestException as e:
             logger.error("[Onurix SMS] Error de red al enviar: %s", e, exc_info=True)
             return False, str(e)
+
+    def get_balance(self):
+        """
+        Consulta el saldo de créditos en la cuenta Onurix.
+        Returns:
+            tuple: (success: bool, balance: int | None)
+        """
+        client = os.getenv('ONURIX_CLIENT')
+        key = os.getenv('ONURIX_KEY')
+        if not client or not key:
+            logger.warning("[Onurix SMS] No se puede consultar saldo: faltan CLIENT/KEY")
+            return False, None
+        try:
+            r = requests.get(
+                ONURIX_BALANCE_URL,
+                params={'client': client, 'key': key},
+                timeout=15,
+            )
+            if not r.ok:
+                logger.warning("[Onurix SMS] Balance: HTTP %s %s", r.status_code, r.text[:200])
+                return False, None
+            data = r.json() if r.text else {}
+            # Intentar campos habituales: balance, credits, saldo
+            balance = data.get('balance') or data.get('credits') or data.get('saldo')
+            if balance is not None:
+                try:
+                    return True, int(balance)
+                except (TypeError, ValueError):
+                    pass
+            logger.warning("[Onurix SMS] Balance: respuesta sin campo numérico: %s", data)
+            return False, None
+        except requests.RequestException as e:
+            logger.warning("[Onurix SMS] Error al consultar saldo: %s", e)
+            return False, None
+        except Exception as e:
+            logger.warning("[Onurix SMS] Error inesperado al consultar saldo: %s", e)
+            return False, None

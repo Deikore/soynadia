@@ -401,18 +401,29 @@ def send_single_sms(provider_id, prospect_id, phone_normalized, body):
 
 
 @shared_task
-def send_sms_campaign(provider_id, body, department_values=None, municipality_values=None, origin_ids=None, identification_numbers=None):
+def send_sms_campaign(
+    provider_id,
+    body,
+    department_values=None,
+    municipality_values=None,
+    origin_ids=None,
+    identification_numbers=None,
+    sexo_values=None,
+    enlace_values=None,
+):
     """
     Tarea asíncrona que envía SMS masivos a los prospectos que cumplen los filtros,
-    usando el proveedor indicado (ej. twilio).
+    usando el proveedor indicado (ej. onurix). Procesa todo el lote en una sola tarea.
 
     Args:
-        provider_id: Identificador del proveedor (ej. 'twilio').
+        provider_id: Identificador del proveedor (ej. 'onurix').
         body: Texto del mensaje SMS.
         department_values: Lista de departamentos (opcional).
         municipality_values: Lista de municipios (opcional).
         origin_ids: Lista de IDs de origen (opcional).
         identification_numbers: Lista de números de cédula (opcional).
+        sexo_values: Lista de valores de sexo (opcional).
+        enlace_values: Lista de valores de enlace (opcional).
 
     Returns:
         dict: {'sent': N, 'failed': M, 'errors': [...]}
@@ -430,6 +441,8 @@ def send_sms_campaign(provider_id, body, department_values=None, municipality_va
         municipality_values=municipality_values,
         origin_ids=origin_ids,
         identification_numbers=identification_numbers,
+        sexo_values=sexo_values,
+        enlace_values=enlace_values,
     )
     prospects_with_phone = get_prospects_with_valid_phone(qs)
     phone_list = [phone for _, phone in prospects_with_phone]
