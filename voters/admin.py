@@ -60,12 +60,39 @@ def run_polling_station_consult(self, request, queryset):
         )
 
 
+@admin.action(description=_('Encolar process_prospect (pendientes de consulta)'))
+def enqueue_process_prospect_pending(self, request, queryset):
+    pending = self.model.objects.filter(
+        identification_number__isnull=False
+    ).exclude(
+        identification_number=''
+    ).filter(
+        polling_station_consulted=False
+    )
+    enqueued = 0
+    for prospect in pending:
+        process_prospect.delay(prospect.id)
+        enqueued += 1
+    if enqueued:
+        self.message_user(
+            request,
+            _('Se encolaron %(n)s prospectos para process_prospect (pendientes de consulta).') % {'n': enqueued},
+            messages.SUCCESS,
+        )
+    else:
+        self.message_user(
+            request,
+            _('No hay prospectos pendientes de consulta (con número de identificación y puesto no consultado).'),
+            messages.WARNING,
+        )
+
+
 @admin.register(Prospect)
 class ProspectAdmin(admin.ModelAdmin):
     """
     Admin para el modelo Prospect.
     """
-    actions = [run_polling_station_consult]
+    actions = [run_polling_station_consult, enqueue_process_prospect_pending]
     list_display = ('identification_number', 'full_name', 'phone_number', 'polling_station_consulted', 'created_at', 'display_created_by')
     list_filter = ('created_at', 'updated_at', 'origins', 'polling_station_consulted')
     search_fields = ('identification_number', 'full_name', 'phone_number')
