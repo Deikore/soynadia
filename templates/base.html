@@ -113,6 +113,10 @@
                         <a href="{{ prospect_create_url }}" class="{% if request.resolver_match.url_name == 'prospect_create' %}border-red-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-red-500 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
                             Crear Prospecto
                         </a>
+                        {% url 'voters:resumen' as resumen_url %}
+                        <a href="{{ resumen_url }}" class="{% if request.resolver_match.url_name == 'resumen' %}border-red-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-red-500 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
+                            Resumen
+                        </a>
                         {% if user.is_superuser or perms.voters.can_view_chat %}
                         {% url 'voters:chat_list' as chat_list_url %}
                         <a href="{{ chat_list_url }}" class="{% if request.resolver_match.url_name == 'chat_list' or request.resolver_match.url_name == 'chat_conversation' %}border-red-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-red-500 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors">
@@ -152,6 +156,10 @@
                 {% url 'voters:prospect_create' as prospect_create_url %}
                 <a href="{{ prospect_create_url }}" class="{% if request.resolver_match.url_name == 'prospect_create' %}bg-red-50 border-red-500 text-red-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
                     Crear Prospecto
+                </a>
+                {% url 'voters:resumen' as resumen_url %}
+                <a href="{{ resumen_url }}" class="{% if request.resolver_match.url_name == 'resumen' %}bg-red-50 border-red-500 text-red-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Resumen
                 </a>
                 {% if user.is_superuser or perms.voters.can_view_chat %}
                 {% url 'voters:chat_list' as chat_list_url %}

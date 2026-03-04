@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+
+{% block title %}Resumen - SoyNadia{% endblock %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2/dist/css/tom-select.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="fade-in">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">Resumen</h1>
+        <p class="mt-2 text-gray-600">Resúmenes ejecutivos por departamento, municipio y por puesto de votación y mesa</p>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
+        <form method="get" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    {{ filter_form.department.label_tag }}
+                    {{ filter_form.department }}
+                </div>
+                <div>
+                    {{ filter_form.municipality.label_tag }}
+                    {{ filter_form.municipality }}
+                </div>
+                <div>
+                    {{ filter_form.origin.label_tag }}
+                    {{ filter_form.origin }}
+                </div>
+                <div>
+                    {{ filter_form.identification_number.label_tag }}
+                    {{ filter_form.identification_number }}
+                </div>
+                <div>
+                    {{ filter_form.sexo.label_tag }}
+                    {{ filter_form.sexo }}
+                </div>
+                <div>
+                    {{ filter_form.enlace.label_tag }}
+                    {{ filter_form.enlace }}
+                </div>
+                <div class="lg:col-span-2">
+                    {{ filter_form.full_name.label_tag }}
+                    {{ filter_form.full_name }}
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors w-full sm:w-auto">
+                    Aplicar filtros
+                </button>
+                <a href="{% url 'voters:resumen' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto">
+                    Limpiar
+                </a>
+                <a href="{% url 'voters:resumen_export_excel' %}{% if query_string %}?{{ query_string }}{% endif %}" class="border-2 border-green-600 text-green-700 hover:bg-green-50 bg-transparent px-6 py-2 rounded-lg font-medium transition-colors text-center w-full sm:w-auto">
+                    Exportar tabla a Excel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Gráfica -->
+    <div class="bg-white rounded-lg shadow-md p-4 md:p-6 mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Prospectos por departamento / municipio</h2>
+            <div class="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+                <button type="button" id="chart-btn-department" class="chart-toggle px-4 py-2 text-sm font-medium rounded-md bg-red-600 text-white">
+                    Por departamento
+                </button>
+                <button type="button" id="chart-btn-municipality" class="chart-toggle px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100">
+                    Por municipio
+                </button>
+            </div>
+        </div>
+        <div class="relative" style="height: 400px;">
+            <canvas id="resumen-chart"></canvas>
+        </div>
+        <p id="chart-empty-message" class="hidden mt-2 text-sm text-gray-500">No hay datos para mostrar con los filtros actuales.</p>
+    </div>
+
+    <!-- Tabla resumen por puesto y mesa -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 class="text-xl font-semibold text-gray-900">Resumen por puesto y mesa</h2>
+            <a href="{% url 'voters:resumen_export_excel' %}{% if query_string %}?{{ query_string }}{% endif %}" class="border-2 border-green-600 text-green-700 hover:bg-green-50 bg-transparent px-4 py-2 rounded-lg font-medium transition-colors text-center text-sm inline-flex items-center justify-center">
+                Exportar a Excel
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Puesto de votación</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dirección del puesto</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mesa</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for row in table_summary %}
+                    <tr class="hover:bg-red-50 transition-colors duration-150">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ row.polling_station }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title="{{ row.polling_station_address|default:'' }}">{{ row.polling_station_address|default:"—" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ row.table }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium text-right">{{ row.cantidad }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-8 text-center text-sm text-gray-500">No hay registros con puesto y mesa con los filtros actuales.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{ chart_dept_labels|json_script:"chart-dept-labels" }}
+{{ chart_dept_data|json_script:"chart-dept-data" }}
+{{ chart_muni_labels|json_script:"chart-muni-labels" }}
+{{ chart_muni_data|json_script:"chart-muni-data" }}
+
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2/dist/js/tom-select.complete.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var opts = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba para buscar...' };
+    if (document.getElementById('id_department')) {
+        new TomSelect('#id_department', opts);
+    }
+    if (document.getElementById('id_municipality')) {
+        new TomSelect('#id_municipality', opts);
+    }
+    if (document.getElementById('id_origin')) {
+        new TomSelect('#id_origin', opts);
+    }
+    var optsCedula = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba número de cédula y pulse Enter', create: true };
+    if (document.getElementById('id_identification_number')) {
+        new TomSelect('#id_identification_number', optsCedula);
+    }
+    var optsNombre = { maxItems: null, plugins: ['remove_button'], placeholder: 'Escriba parte del nombre y pulse Enter', create: true };
+    if (document.getElementById('id_full_name')) {
+        new TomSelect('#id_full_name', optsNombre);
+    }
+    if (document.getElementById('id_sexo')) {
+        new TomSelect('#id_sexo', opts);
+    }
+    if (document.getElementById('id_enlace')) {
+        new TomSelect('#id_enlace', opts);
+    }
+
+    var deptLabels = JSON.parse(document.getElementById('chart-dept-labels').textContent);
+    var deptData = JSON.parse(document.getElementById('chart-dept-data').textContent);
+    var muniLabels = JSON.parse(document.getElementById('chart-muni-labels').textContent);
+    var muniData = JSON.parse(document.getElementById('chart-muni-data').textContent);
+
+    var ctx = document.getElementById('resumen-chart').getContext('2d');
+    var chartEmptyMsg = document.getElementById('chart-empty-message');
+
+    var redColors = [
+        'rgba(239, 68, 68, 0.8)',
+        'rgba(220, 38, 38, 0.8)',
+        'rgba(185, 28, 28, 0.8)',
+        'rgba(248, 113, 113, 0.8)',
+        'rgba(252, 165, 165, 0.8)',
+    ];
+    function makeColors(n) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+            out.push(redColors[i % redColors.length]);
+        }
+        return out;
+    }
+
+    var currentMode = 'department';
+    var chartInstance = null;
+
+    function buildChart(labels, data) {
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
+        if (labels.length === 0) {
+            chartEmptyMsg.classList.remove('hidden');
+            return;
+        }
+        chartEmptyMsg.classList.add('hidden');
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Prospectos',
+                    data: data,
+                    backgroundColor: makeColors(labels.length),
+                    borderColor: 'rgb(185, 28, 28)',
+                    borderWidth: 1,
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.x + ' prospecto(s)';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 },
+                    },
+                },
+            },
+        });
+    }
+
+    function setActiveButton(mode) {
+        var btnDept = document.getElementById('chart-btn-department');
+        var btnMuni = document.getElementById('chart-btn-municipality');
+        if (mode === 'department') {
+            btnDept.classList.add('bg-red-600', 'text-white');
+            btnDept.classList.remove('text-gray-600');
+            btnMuni.classList.remove('bg-red-600', 'text-white');
+            btnMuni.classList.add('text-gray-600');
+            buildChart(deptLabels, deptData);
+        } else {
+            btnMuni.classList.add('bg-red-600', 'text-white');
+            btnMuni.classList.remove('text-gray-600');
+            btnDept.classList.remove('bg-red-600', 'text-white');
+            btnDept.classList.add('text-gray-600');
+            buildChart(muniLabels, muniData);
+        }
+        currentMode = mode;
+    }
+
+    document.getElementById('chart-btn-department').addEventListener('click', function() {
+        setActiveButton('department');
+    });
+    document.getElementById('chart-btn-municipality').addEventListener('click', function() {
+        setActiveButton('municipality');
+    });
+
+    setActiveButton('department');
+});
+</script>
+{% endblock %}

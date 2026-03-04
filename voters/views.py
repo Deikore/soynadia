@@ -239,6 +239,143 @@ def prospect_export_excel(request):
 
 
 @login_required
+def resumen(request):
+    """
+    Vista del panel de resumen ejecutivo: gráfica por departamento/municipio
+    y tabla por puesto y mesa, con los mismos filtros que la lista de prospectos.
+    """
+    dept_choices, muni_choices, origin_choices, sexo_choices, enlace_choices = get_sms_filter_options()
+    department_values = request.GET.getlist('department')
+    municipality_values = request.GET.getlist('municipality')
+    origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
+    identification_values = request.GET.getlist('identification_number')
+    full_name_values = request.GET.getlist('full_name')
+    sexo_values = request.GET.getlist('sexo')
+    enlace_values = request.GET.getlist('enlace')
+    identification_choices = [(v, v) for v in identification_values if v and str(v).strip()]
+    full_name_choices = [(v, v) for v in full_name_values if v and str(v).strip()]
+
+    filter_form = ProspectListFilterForm(
+        request.GET,
+        department_choices=dept_choices,
+        municipality_choices=muni_choices,
+        origin_choices=origin_choices,
+        identification_choices=identification_choices,
+        full_name_choices=full_name_choices,
+        sexo_choices=sexo_choices,
+        enlace_choices=enlace_choices,
+    )
+    qs = get_prospect_list_queryset(
+        department_values=department_values or None,
+        municipality_values=municipality_values or None,
+        origin_ids=origin_ids or None,
+        identification_numbers=identification_values or None,
+        full_name_values=full_name_values or None,
+        sexo_values=sexo_values or None,
+        enlace_values=enlace_values or None,
+    )
+
+    chart_by_department = list(
+        qs.exclude(department__in=[None, ''])
+        .values('department')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    chart_by_municipality = list(
+        qs.exclude(municipality__in=[None, ''])
+        .values('municipality')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    table_summary = list(
+        qs.exclude(polling_station__in=[None, ''])
+        .exclude(table__in=[None, ''])
+        .values('polling_station', 'polling_station_address', 'table')
+        .annotate(cantidad=Count('id'))
+        .order_by('-cantidad')
+    )
+
+    chart_dept_labels = [x['department'] for x in chart_by_department]
+    chart_dept_data = [x['count'] for x in chart_by_department]
+    chart_muni_labels = [x['municipality'] for x in chart_by_municipality]
+    chart_muni_data = [x['count'] for x in chart_by_municipality]
+
+    get_copy = request.GET.copy()
+    query_string = get_copy.urlencode()
+
+    context = {
+        'filter_form': filter_form,
+        'query_string': query_string,
+        'chart_by_department': chart_by_department,
+        'chart_by_municipality': chart_by_municipality,
+        'chart_dept_labels': chart_dept_labels,
+        'chart_dept_data': chart_dept_data,
+        'chart_muni_labels': chart_muni_labels,
+        'chart_muni_data': chart_muni_data,
+        'table_summary': table_summary,
+    }
+    return render(request, 'voters/resumen.html', context)
+
+
+@login_required
+def resumen_export_excel(request):
+    """
+    Exporta la tabla resumen (puesto, mesa, cantidad) con los mismos filtros
+    que la página de resumen, a un archivo Excel.
+    """
+    from openpyxl import Workbook
+    from io import BytesIO
+
+    department_values = request.GET.getlist('department')
+    municipality_values = request.GET.getlist('municipality')
+    origin_ids = [int(x) for x in request.GET.getlist('origin') if x.isdigit()]
+    identification_values = request.GET.getlist('identification_number')
+    full_name_values = request.GET.getlist('full_name')
+    sexo_values = request.GET.getlist('sexo')
+    enlace_values = request.GET.getlist('enlace')
+
+    qs = get_prospect_list_queryset(
+        department_values=department_values or None,
+        municipality_values=municipality_values or None,
+        origin_ids=origin_ids or None,
+        identification_numbers=identification_values or None,
+        full_name_values=full_name_values or None,
+        sexo_values=sexo_values or None,
+        enlace_values=enlace_values or None,
+    )
+    table_summary = list(
+        qs.exclude(polling_station__in=[None, ''])
+        .exclude(table__in=[None, ''])
+        .values('polling_station', 'polling_station_address', 'table')
+        .annotate(cantidad=Count('id'))
+        .order_by('-cantidad')
+    )
+
+    headers = ['Puesto de votación', 'Dirección del puesto', 'Mesa', 'Cantidad']
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Resumen por puesto y mesa'
+    ws.append(headers)
+    for row in table_summary:
+        ws.append([
+            row['polling_station'] or '',
+            row['polling_station_address'] or '',
+            row['table'] or '',
+            row['cantidad'],
+        ])
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="resumen_puesto_mesa.xlsx"'
+    return response
+
+
+@login_required
 def prospect_create(request):
     """
     Vista para crear un nuevo prospecto.
