@@ -6,7 +6,7 @@ import io
 import os
 from pathlib import Path
 import environ
-from celery import shared_task, group
+from celery import shared_task, group, chord
 from celery.utils.log import get_task_logger
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
@@ -452,6 +452,25 @@ def send_sms_campaign_chunk(provider_id, body, chunk_data):
 
 
 @shared_task
+def send_sms_campaign_aggregate(results):
+    """
+    Callback de un chord: recibe la lista de resultados de los chunks y devuelve
+    el agregado (sent, failed, errors). No llamar directamente.
+    """
+    total_sent = sum(r.get('sent', 0) for r in results)
+    total_failed = sum(r.get('failed', 0) for r in results)
+    all_errors = []
+    for r in results:
+        all_errors.extend(r.get('errors', []))
+    if len(all_errors) > SMS_CAMPAIGN_ERRORS_LIMIT:
+        extra = len(all_errors) - SMS_CAMPAIGN_ERRORS_LIMIT
+        all_errors = all_errors[:SMS_CAMPAIGN_ERRORS_LIMIT]
+        all_errors.append(f'... y {extra} errores más (total failed={total_failed})')
+    logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", total_sent, total_failed)
+    return {'sent': total_sent, 'failed': total_failed, 'errors': all_errors}
+
+
+@shared_task
 def send_sms_campaign(
     provider_id,
     body,
@@ -509,21 +528,14 @@ def send_sms_campaign(
         chunk_data = [[p.pk, phone] for p, phone in chunk]
         chunks.append(chunk_data)
 
-    job = group(
-        send_sms_campaign_chunk.s(provider_id, body, chunk_data) for chunk_data in chunks
-    )
-    results = job.apply_async().get()
+    # Usar chord: no se puede llamar result.get() dentro de una tarea, así que
+    # despachamos el chord y un callback agrega los resultados cuando terminen los chunks.
+    chord(
+        group(
+            send_sms_campaign_chunk.s(provider_id, body, chunk_data) for chunk_data in chunks
+        ),
+        send_sms_campaign_aggregate.s(),
+    ).apply_async()
 
-    total_sent = sum(r['sent'] for r in results)
-    total_failed = sum(r['failed'] for r in results)
-    all_errors = []
-    for r in results:
-        all_errors.extend(r.get('errors', []))
-
-    if len(all_errors) > SMS_CAMPAIGN_ERRORS_LIMIT:
-        extra = len(all_errors) - SMS_CAMPAIGN_ERRORS_LIMIT
-        all_errors = all_errors[:SMS_CAMPAIGN_ERRORS_LIMIT]
-        all_errors.append(f'... y {extra} errores más (total failed={total_failed})')
-
-    logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", total_sent, total_failed)
-    return {'sent': total_sent, 'failed': total_failed, 'errors': all_errors}
+    logger.info("[SMS] Campaña despachada: %s chunks", len(chunks))
+    return {'status': 'dispatched', 'chunks': len(chunks)}
