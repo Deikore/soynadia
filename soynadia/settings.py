@@ -248,6 +248,10 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'America/Bogota'
 CELERY_ENABLE_UTC = True
 
+# SMS campaign: tamaño de cada chunk (paralelización) y límite de errores en la respuesta
+SMS_CAMPAIGN_CHUNK_SIZE = env.int('SMS_CAMPAIGN_CHUNK_SIZE', default=500)
+SMS_CAMPAIGN_ERRORS_LIMIT = env.int('SMS_CAMPAIGN_ERRORS_LIMIT', default=100)
+
 # Logging: ensure voters.webhook_views logs always go to stderr (Gunicorn → gunicorn.log)
 # Independent of DEBUG so [Twilio] logs are visible in production
 LOGGING = {

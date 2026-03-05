@@ -6,7 +6,7 @@ import io
 import os
 from pathlib import Path
 import environ
-from celery import shared_task
+from celery import shared_task, group
 from celery.utils.log import get_task_logger
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
@@ -400,6 +400,57 @@ def send_single_sms(provider_id, prospect_id, phone_normalized, body):
     return {'ok': False, 'error': result}
 
 
+# Tamaño de cada chunk en campañas SMS masivas (configurable por SMS_CAMPAIGN_CHUNK_SIZE).
+SMS_CAMPAIGN_CHUNK_SIZE = getattr(settings, 'SMS_CAMPAIGN_CHUNK_SIZE', 500)
+# Límite de mensajes de error devueltos en el resultado (evitar payloads enormes).
+SMS_CAMPAIGN_ERRORS_LIMIT = getattr(settings, 'SMS_CAMPAIGN_ERRORS_LIMIT', 100)
+
+
+@shared_task
+def send_sms_campaign_chunk(provider_id, body, chunk_data):
+    """
+    Envía SMS a un lote de prospectos (chunk). Usado por send_sms_campaign en paralelo.
+
+    Args:
+        provider_id: Identificador del proveedor (ej. 'onurix').
+        body: Texto del mensaje SMS.
+        chunk_data: Lista de [prospect_id, phone] para este chunk.
+
+    Returns:
+        dict: {'sent': N, 'failed': M, 'errors': [...]}
+    """
+    from .sms_providers import get_provider
+    from .models import ProspectCommunication
+
+    provider = get_provider(provider_id)
+    if not provider:
+        logger.error("[SMS] Proveedor no encontrado: %s", provider_id)
+        return {'sent': 0, 'failed': len(chunk_data), 'errors': [f'Proveedor no encontrado: {provider_id}']}
+
+    if not chunk_data:
+        return {'sent': 0, 'failed': 0, 'errors': []}
+
+    phone_list = [item[1] for item in chunk_data]
+    prospect_ids = [item[0] for item in chunk_data]
+
+    sent, failed, errors = provider.send_sms_batch(phone_list, body)
+
+    communications = [
+        ProspectCommunication(
+            prospect_id=prospect_id,
+            channel=ProspectCommunication.CHANNEL_SMS,
+            content=body,
+            provider_id=provider_id,
+        )
+        for prospect_id in prospect_ids
+    ]
+    if communications:
+        ProspectCommunication.objects.bulk_create(communications)
+
+    logger.info("[SMS] Chunk finalizado: enviados=%s, fallidos=%s (total=%s)", sent, failed, len(chunk_data))
+    return {'sent': sent, 'failed': failed, 'errors': errors}
+
+
 @shared_task
 def send_sms_campaign(
     provider_id,
@@ -413,7 +464,8 @@ def send_sms_campaign(
 ):
     """
     Tarea asíncrona que envía SMS masivos a los prospectos que cumplen los filtros,
-    usando el proveedor indicado (ej. onurix). Procesa todo el lote en una sola tarea.
+    usando el proveedor indicado (ej. onurix). Parte el lote en chunks y los procesa
+    en paralelo con varias tareas Celery.
 
     Args:
         provider_id: Identificador del proveedor (ej. 'onurix').
@@ -445,22 +497,33 @@ def send_sms_campaign(
         enlace_values=enlace_values,
     )
     prospects_with_phone = get_prospects_with_valid_phone(qs)
-    phone_list = [phone for _, phone in prospects_with_phone]
 
-    sent, failed, errors = provider.send_sms_batch(phone_list, body)
+    if not prospects_with_phone:
+        logger.info("[SMS] Campaña sin prospectos con teléfono válido")
+        return {'sent': 0, 'failed': 0, 'errors': []}
 
-    from .models import ProspectCommunication
-    communications = [
-        ProspectCommunication(
-            prospect=prospect,
-            channel=ProspectCommunication.CHANNEL_SMS,
-            content=body,
-            provider_id=provider_id,
-        )
-        for prospect, _ in prospects_with_phone
-    ]
-    if communications:
-        ProspectCommunication.objects.bulk_create(communications)
+    chunk_size = SMS_CAMPAIGN_CHUNK_SIZE
+    chunks = []
+    for i in range(0, len(prospects_with_phone), chunk_size):
+        chunk = prospects_with_phone[i : i + chunk_size]
+        chunk_data = [[p.pk, phone] for p, phone in chunk]
+        chunks.append(chunk_data)
 
-    logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", sent, failed)
-    return {'sent': sent, 'failed': failed, 'errors': errors}
+    job = group(
+        send_sms_campaign_chunk.s(provider_id, body, chunk_data) for chunk_data in chunks
+    )
+    results = job.apply_async().get()
+
+    total_sent = sum(r['sent'] for r in results)
+    total_failed = sum(r['failed'] for r in results)
+    all_errors = []
+    for r in results:
+        all_errors.extend(r.get('errors', []))
+
+    if len(all_errors) > SMS_CAMPAIGN_ERRORS_LIMIT:
+        extra = len(all_errors) - SMS_CAMPAIGN_ERRORS_LIMIT
+        all_errors = all_errors[:SMS_CAMPAIGN_ERRORS_LIMIT]
+        all_errors.append(f'... y {extra} errores más (total failed={total_failed})')
+
+    logger.info("[SMS] Campaña finalizada: enviados=%s, fallidos=%s", total_sent, total_failed)
+    return {'sent': total_sent, 'failed': total_failed, 'errors': all_errors}

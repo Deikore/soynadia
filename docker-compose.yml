@@ -83,6 +83,8 @@ services:
       - ONURIX_CLIENT=${ONURIX_CLIENT:-}
       - ONURIX_KEY=${ONURIX_KEY:-}
       - ONURIX_GROUPS=${ONURIX_GROUPS:-}
+      - SMS_CAMPAIGN_CHUNK_SIZE=${SMS_CAMPAIGN_CHUNK_SIZE:-500}
+      - SMS_CAMPAIGN_ERRORS_LIMIT=${SMS_CAMPAIGN_ERRORS_LIMIT:-100}
     depends_on:
       db:
         condition: service_healthy
@@ -122,6 +124,8 @@ services:
       - ONURIX_CLIENT=${ONURIX_CLIENT:-}
       - ONURIX_KEY=${ONURIX_KEY:-}
       - ONURIX_GROUPS=${ONURIX_GROUPS:-}
+      - SMS_CAMPAIGN_CHUNK_SIZE=${SMS_CAMPAIGN_CHUNK_SIZE:-500}
+      - SMS_CAMPAIGN_ERRORS_LIMIT=${SMS_CAMPAIGN_ERRORS_LIMIT:-100}
     entrypoint: /bin/bash -c "while ! nc -z $$DB_HOST $$DB_PORT; do sleep 0.5; done && python manage.py migrate --noinput && celery -A soynadia worker -l info"
     depends_on:
       db:
